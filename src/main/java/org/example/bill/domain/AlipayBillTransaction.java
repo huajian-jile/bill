@@ -1,5 +1,6 @@
 package org.example.bill.domain;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -11,6 +12,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "alipay_bill_transactions")
+@TableName("alipay_bill_transactions")
 @Getter
 @Setter
 @NoArgsConstructor

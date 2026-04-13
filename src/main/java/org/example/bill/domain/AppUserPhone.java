@@ -1,5 +1,6 @@
 package org.example.bill.domain;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import jakarta.persistence.*;
 import java.time.Instant;
 import lombok.Getter;
@@ -8,6 +9,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "app_user_phones")
+@TableName("app_user_phones")
 @Getter
 @Setter
 @NoArgsConstructor

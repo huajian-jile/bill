@@ -1,5 +1,6 @@
 package org.example.bill.domain;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -7,6 +8,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "permissions")
+@TableName("permissions")
 @Getter
 @Setter
 @NoArgsConstructor
