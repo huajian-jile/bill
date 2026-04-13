@@ -19,6 +19,8 @@ import org.apache.commons.csv.CSVRecord;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.example.bill.domain.*;
+import org.example.bill.mapper.AlipayUserMapper;
+import org.example.bill.mapper.PhoneNumberMapper;
 import org.example.bill.repo.*;
 import org.example.bill.util.PhoneUtil;
 import org.example.bill.util.RowHashUtil;
@@ -48,18 +50,18 @@ public class AlipayImportService {
     private final WechatUserRepository wechatUserRepo;
     private final AlipayBillImportRepository alipayImportRepo;
     private final AlipayBillTransactionRepository alipayTxRepo;
+    private final BillImportLinkageService billImportLinkageService;
+    private final AlipayUserMapper alipayUserMapper;
+    private final PhoneNumberMapper phoneNumberMapper;
 
-    /** xlsx 或 csv，须传中国大陆手机号 */
+    /** 仅支持 CSV，须传中国大陆手机号 */
     @Transactional
     public AlipayBillImport importAlipay(MultipartFile file, String mobileCn) throws Exception {
         PhoneUtil.requireValidCnMobile(mobileCn);
-        String fn = file.getOriginalFilename();
-        if (fn != null && fn.toLowerCase().endsWith(".csv")) {
-            return importCsv(file, mobileCn);
-        }
-        return importXlsx(file, mobileCn);
+        return importCsv(file, mobileCn);
     }
 
+    /** @deprecated 仅支持 CSV，不支持 xlsx */
     @Transactional
     public AlipayBillImport importXlsx(MultipartFile file, String mobileCn) throws Exception {
         Map<String, Object> meta = new HashMap<>();
@@ -111,9 +113,10 @@ public class AlipayImportService {
                 Optional.ofNullable(meta.get("alipay_nickname"))
                         .map(Object::toString)
                         .orElse("未知用户");
+
+        // 1. 先保证 phone_number + person + wechat_user 关联链路已建立
         WechatUser wu =
-                wechatUserRepo
-                        .findTopByWechatNicknameOrderByIdAsc(nickname)
+                billImportLinkageService.findWechatUserAlreadyLinkedToMobile(mobileCn)
                         .orElseGet(
                                 () -> {
                                     WechatUser u = new WechatUser();
@@ -124,12 +127,41 @@ public class AlipayImportService {
                                     u.setArchived(false);
                                     return wechatUserRepo.save(u);
                                 });
+        billImportLinkageService.ensurePhoneAndPersonLinked(wu, mobileCn);
+        // 刷新最新 person_id / phone_id
+        wu = wechatUserRepo.findById(wu.getId()).orElse(wu);
 
+        // 捕获为 effectively-final，供 lambda 使用
+        Long personId = wu.getPersonId();
+        Long phoneId = wu.getPhoneId();
+        String normalizedMobile = PhoneUtil.normalizeCnMobile(mobileCn);
+
+        // 2. 查找或创建 AlipayUser（按 person_id + nickname）
+        AlipayUser au =
+                alipayUserMapper
+                        .findByPersonIdAndAlipayNickname(personId, nickname)
+                        .orElseGet(
+                                () -> {
+                                    AlipayUser a = new AlipayUser();
+                                    a.setPersonId(personId);
+                                    a.setMobileCn(normalizedMobile);
+                                    a.setAlipayNickname(nickname);
+                                    Instant n = Instant.now();
+                                    a.setCreatedAt(n);
+                                    a.setUpdatedAt(n);
+                                    a.setArchived(false);
+                                    a.setCreatedBy("spring-import");
+                                    a.setUpdatedBy("spring-import");
+                                    alipayUserMapper.insert(a);
+                                    return a;
+                                });
+
+        // 3. 创建 alipay_bill_imports，user_id 指向 alipay_users
         AlipayBillImport imp = new AlipayBillImport();
-        imp.setUserId(wu.getId());
-        imp.setPersonId(wu.getPersonId());
-        imp.setPhoneId(wu.getPhoneId());
-        imp.setMobileCn(PhoneUtil.normalizeCnMobile(mobileCn));
+        imp.setUserId(au.getId());
+        imp.setPersonId(personId);
+        imp.setPhoneId(phoneId);
+        imp.setMobileCn(normalizedMobile);
         imp.setSourceFile(Objects.requireNonNullElse(file.getOriginalFilename(), "upload.xlsx"));
         imp.setExportType(str(meta.get("export_type")));
         imp.setExportTime(parseInstant(meta.get("export_time")));
@@ -179,9 +211,9 @@ public class AlipayImportService {
             t.setMerchantNo(get(col, vals, "商户单号"));
             t.setRemark(get(col, vals, "备注"));
             t.setSourceFile(imp.getSourceFile());
-            t.setPersonId(wu.getPersonId());
-            t.setPhoneId(wu.getPhoneId());
-            t.setMobileCn(PhoneUtil.normalizeCnMobile(mobileCn));
+            t.setPersonId(personId);
+            t.setPhoneId(phoneId);
+            t.setMobileCn(normalizedMobile);
             t.setRowHash(
                     RowHashUtil.hash(
                             t.getTradeTime(),
@@ -198,8 +230,8 @@ public class AlipayImportService {
             try {
                 alipayTxRepo.save(t);
             } catch (DataIntegrityViolationException ignored) {
-                if (wu.getPersonId() != null && t.getRowHash() != null) {
-                    upsertTxByPersonAndHash(t, wu.getPersonId(), imp.getId(), now);
+                if (t.getRowHash() != null) {
+                    upsertTxByPersonAndHash(t, personId, imp.getId(), now);
                 }
             }
         }
@@ -236,10 +268,10 @@ public class AlipayImportService {
                 col.put(headers.get(i).trim(), i);
             }
         }
-        String nick = "账单用户-" + PhoneUtil.normalizeCnMobile(mobileCn);
+        String normalizedMobile = PhoneUtil.normalizeCnMobile(mobileCn);
+        String nick = "账单用户-" + normalizedMobile;
         WechatUser wu =
-                wechatUserRepo
-                        .findTopByWechatNicknameOrderByIdAsc(nick)
+                billImportLinkageService.findWechatUserAlreadyLinkedToMobile(mobileCn)
                         .orElseGet(
                                 () -> {
                                     WechatUser u = new WechatUser();
@@ -250,13 +282,39 @@ public class AlipayImportService {
                                     u.setArchived(false);
                                     return wechatUserRepo.save(u);
                                 });
+        billImportLinkageService.ensurePhoneAndPersonLinked(wu, mobileCn);
+        wu = wechatUserRepo.findById(wu.getId()).orElse(wu);
+
+        // 捕获为 effectively-final，供 lambda 使用
+        Long personId = wu.getPersonId();
+        Long phoneId = wu.getPhoneId();
+
+        AlipayUser au =
+                alipayUserMapper
+                        .findByPersonIdAndAlipayNickname(personId, nick)
+                        .orElseGet(
+                                () -> {
+                                    AlipayUser a = new AlipayUser();
+                                    a.setPersonId(personId);
+                                    a.setMobileCn(normalizedMobile);
+                                    a.setAlipayNickname(nick);
+                                    Instant n = Instant.now();
+                                    a.setCreatedAt(n);
+                                    a.setUpdatedAt(n);
+                                    a.setArchived(false);
+                                    a.setCreatedBy("spring-import");
+                                    a.setUpdatedBy("spring-import");
+                                    alipayUserMapper.insert(a);
+                                    return a;
+                                });
 
         AlipayBillImport imp = new AlipayBillImport();
-        imp.setUserId(wu.getId());
-        imp.setPersonId(wu.getPersonId());
-        imp.setPhoneId(wu.getPhoneId());
-        imp.setMobileCn(PhoneUtil.normalizeCnMobile(mobileCn));
+        imp.setUserId(au.getId());
+        imp.setPersonId(personId);
+        imp.setPhoneId(phoneId);
+        imp.setMobileCn(normalizedMobile);
         imp.setSourceFile(Objects.requireNonNullElse(file.getOriginalFilename(), "upload.csv"));
+        // CSV 格式有限，不解析 meta 信息，以下字段留空
         Instant now = Instant.now();
         imp.setCreatedAt(now);
         imp.setUpdatedAt(now);
@@ -280,9 +338,9 @@ public class AlipayImportService {
             t.setMerchantNo(firstNonBlank(get(col, vals, "商户单号"), get(col, vals, "商家订单号")));
             t.setRemark(get(col, vals, "备注"));
             t.setSourceFile(imp.getSourceFile());
-            t.setPersonId(wu.getPersonId());
-            t.setPhoneId(wu.getPhoneId());
-            t.setMobileCn(PhoneUtil.normalizeCnMobile(mobileCn));
+            t.setPersonId(personId);
+            t.setPhoneId(phoneId);
+            t.setMobileCn(normalizedMobile);
             t.setRowHash(
                     RowHashUtil.hash(
                             t.getTradeTime(),
@@ -299,8 +357,8 @@ public class AlipayImportService {
             try {
                 alipayTxRepo.save(t);
             } catch (DataIntegrityViolationException ignored) {
-                if (wu.getPersonId() != null && t.getRowHash() != null) {
-                    upsertTxByPersonAndHash(t, wu.getPersonId(), imp.getId(), now);
+                if (t.getRowHash() != null) {
+                    upsertTxByPersonAndHash(t, personId, imp.getId(), now);
                 }
             }
         }
@@ -314,31 +372,38 @@ public class AlipayImportService {
         return b == null ? "" : b;
     }
 
-    /** 与 Python 全局 (person_id, row_hash) 唯一一致：重复导入时更新时间与归属批次 */
+    /** 与 Python 全局 (person_id, row_hash) 唯一一致：重复导入时更新时间与归属批次；找不到时保存新记录 */
     private void upsertTxByPersonAndHash(
             AlipayBillTransaction t, Long personId, Long billImportId, Instant now) {
-        alipayTxRepo.findByPersonIdAndRowHash(personId, t.getRowHash())
-                .ifPresent(
-                        existing -> {
-                            existing.setBillImportId(billImportId);
-                            existing.setPhoneId(t.getPhoneId());
-                            existing.setMobileCn(t.getMobileCn());
-                            existing.setTradeTime(t.getTradeTime());
-                            existing.setTradeType(t.getTradeType());
-                            existing.setCounterparty(t.getCounterparty());
-                            existing.setProduct(t.getProduct());
-                            existing.setIncomeExpense(t.getIncomeExpense());
-                            existing.setAmountYuan(t.getAmountYuan());
-                            existing.setPaymentMethod(t.getPaymentMethod());
-                            existing.setStatus(t.getStatus());
-                            existing.setTradeNo(t.getTradeNo());
-                            existing.setMerchantNo(t.getMerchantNo());
-                            existing.setRemark(t.getRemark());
-                            existing.setSourceFile(t.getSourceFile());
-                            existing.setUpdatedAt(now);
-                            existing.setUpdatedBy("spring-import");
-                            alipayTxRepo.save(existing);
-                        });
+        Optional<AlipayBillTransaction> existing =
+                alipayTxRepo.findByPersonIdAndRowHash(personId, t.getRowHash());
+        if (existing.isPresent()) {
+            AlipayBillTransaction ex = existing.get();
+            ex.setBillImportId(billImportId);
+            ex.setPhoneId(t.getPhoneId());
+            ex.setMobileCn(t.getMobileCn());
+            ex.setTradeTime(t.getTradeTime());
+            ex.setTradeType(t.getTradeType());
+            ex.setCounterparty(t.getCounterparty());
+            ex.setProduct(t.getProduct());
+            ex.setIncomeExpense(t.getIncomeExpense());
+            ex.setAmountYuan(t.getAmountYuan());
+            ex.setPaymentMethod(t.getPaymentMethod());
+            ex.setStatus(t.getStatus());
+            ex.setTradeNo(t.getTradeNo());
+            ex.setMerchantNo(t.getMerchantNo());
+            ex.setRemark(t.getRemark());
+            ex.setSourceFile(t.getSourceFile());
+            ex.setUpdatedAt(now);
+            ex.setUpdatedBy("spring-import");
+            alipayTxRepo.save(ex);
+        } else {
+            // 找不到时直接保存新记录，避免数据丢失
+            t.setPersonId(personId);
+            t.setUpdatedAt(now);
+            t.setUpdatedBy("spring-import");
+            alipayTxRepo.save(t);
+        }
     }
 
     private String get(Map<String, Integer> col, String[] vals, String name) {

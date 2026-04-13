@@ -2,7 +2,12 @@
   <el-card>
     <template #header>导入账单（微信：.xlsx；支付宝：.csv）</template>
     <el-alert type="info" :closable="false" show-icon style="margin-bottom: 16px">
-      请选择<strong>本账号已绑定</strong>的手机号；若列表为空请先到「绑定手机号」中添加。可一次选择<strong>多个文件</strong>，将依次导入。
+      <template v-if="isAdmin">
+        管理员可选择系统中<strong>任意已建档手机号</strong>（phone_number 全表）。可一次选择<strong>多个文件</strong>，将依次导入。
+      </template>
+      <template v-else>
+        请选择<strong>本账号已绑定</strong>的手机号；若列表为空请先到「绑定手机号」中添加。可一次选择<strong>多个文件</strong>，将依次导入。
+      </template>
     </el-alert>
     <el-form label-width="88px" style="max-width: 480px">
       <el-form-item label="手机号" required>
@@ -55,6 +60,15 @@ const loading = ref(false)
 const resultSummary = ref('')
 const boundPhones = ref([])
 
+const isAdmin = computed(() => {
+  try {
+    const a = JSON.parse(localStorage.getItem('authorities') || '[]')
+    return Array.isArray(a) && a.includes('PERM_USER_ADMIN')
+  } catch {
+    return false
+  }
+})
+
 const fileAccept = computed(() => (channel.value === 'alipay' ? '.csv' : '.xlsx'))
 
 function syncUploadFiles(uploadFile, uploadFiles) {
@@ -76,8 +90,13 @@ function fileMatchesChannel(name) {
 
 async function loadPhones() {
   try {
-    const { data } = await api.get('/me/phones')
-    boundPhones.value = data || []
+    if (isAdmin.value) {
+      const { data } = await api.get('/me/bill-phones')
+      boundPhones.value = (data || []).map((p) => p.mobileCn).filter(Boolean)
+    } else {
+      const { data } = await api.get('/me/phones')
+      boundPhones.value = data || []
+    }
     localStorage.setItem('phones', JSON.stringify(boundPhones.value))
     if (boundPhones.value.length && !mobileCn.value) {
       mobileCn.value = boundPhones.value[0]

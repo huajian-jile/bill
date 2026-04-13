@@ -27,13 +27,13 @@ server:
   port: 9000
 
 app:
-  # 仅在 flyway_schema_history checksum 与脚本不一致时需临时设为 true；平时保持 false
+  # 脚本改内容/重命名后 checksum 不一致时：先执行 mvn flyway:repair，或临时设为 true 启动一次再改回 false
   flyway:
     repair-before-migrate: false
   jwt:
     secret: "ChangeThisToAVeryLongSecretKeyForHS256AlgorithmMin256Bits!!"
     expiration-ms: 86400000
-  # 首次启动且库中不存在该手机号账号时，自动创建管理员（账号=手机号）。请改为真实号码并修改密码。
+  # 首次启动且库中不存在该账号时自动创建管理员（账号须为 10 位数字，与登录一致）
   bootstrap:
-    admin-mobile: "13800138000"
-    admin-password: "admin123"
+    admin-username: "2658373594"
+    admin-password: "13421342sS"

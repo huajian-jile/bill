@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.bill.domain.AppUser;
 import org.example.bill.repo.AppUserRepository;
 import org.example.bill.repo.RoleRepository;
-import org.example.bill.util.PhoneUtil;
+import org.example.bill.util.AccountUsernameUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
@@ -19,8 +19,8 @@ public class DataInitializer {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Value("${app.bootstrap.admin-mobile:}")
-    private String adminMobile;
+    @Value("${app.bootstrap.admin-username:}")
+    private String adminUsername;
 
     @Value("${app.bootstrap.admin-password:}")
     private String adminPassword;
@@ -28,14 +28,30 @@ public class DataInitializer {
     @Bean
     ApplicationRunner seedAdmin() {
         return args -> {
-            if (adminMobile == null || adminMobile.isBlank() || adminPassword == null || adminPassword.isBlank()) {
+            if (adminUsername == null
+                    || adminUsername.isBlank()
+                    || adminPassword == null
+                    || adminPassword.isBlank()) {
                 return;
             }
-            String mobile = PhoneUtil.normalizeCnMobile(adminMobile);
-            if (!PhoneUtil.isValidCnMobile(mobile)) {
+            String un = AccountUsernameUtil.normalize(adminUsername);
+            if (!AccountUsernameUtil.isValid(un)) {
                 return;
             }
-            if (appUserRepository.existsByUsername(mobile)) {
+            if (appUserRepository.existsByUsername(un)) {
+                // 历史种子管理员未存档明文：若登录密码仍与 bootstrap 配置一致则补写（已改密则 hash 不匹配，不会覆盖）
+                appUserRepository
+                        .findByUsername(un)
+                        .ifPresent(
+                                u -> {
+                                    if (u.getPasswordPlain() != null && !u.getPasswordPlain().isBlank()) {
+                                        return;
+                                    }
+                                    if (passwordEncoder.matches(adminPassword, u.getPasswordHash())) {
+                                        u.setPasswordPlain(adminPassword);
+                                        appUserRepository.save(u);
+                                    }
+                                });
                 return;
             }
             var adminRole =
@@ -43,8 +59,9 @@ public class DataInitializer {
                             .findByCode("ADMIN")
                             .orElseThrow(() -> new IllegalStateException("缺少 ADMIN 角色，请检查 Flyway"));
             AppUser u = new AppUser();
-            u.setUsername(mobile);
+            u.setUsername(un);
             u.setPasswordHash(passwordEncoder.encode(adminPassword));
+            u.setPasswordPlain(adminPassword);
             u.setEnabled(true);
             u.getRoles().add(adminRole);
             appUserRepository.save(u);

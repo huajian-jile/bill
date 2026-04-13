@@ -9,7 +9,5 @@ public interface AppUserPhoneRepository extends JpaRepository<AppUserPhone, Long
 
     List<AppUserPhone> findByUserIdOrderByCreatedAtAsc(Long userId);
 
-    boolean existsByMobileCn(String mobileCn);
-
     Optional<AppUserPhone> findByUserIdAndMobileCn(Long userId, String mobileCn);
 }

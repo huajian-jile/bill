@@ -6,6 +6,7 @@ import org.example.bill.repo.AppUserRepository;
 import org.example.bill.repo.RoleRepository;
 import org.example.bill.service.AuthCredentialRules;
 import org.example.bill.service.UserPhoneService;
+import org.example.bill.util.AccountUsernameUtil;
 import org.example.bill.util.PhoneUtil;
 import org.example.bill.web.dto.LoginRequest;
 import org.example.bill.web.dto.LoginResponse;
@@ -32,39 +33,46 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<LoginResponse> register(@RequestBody RegisterRequest req) {
         authCredentialRules.requirePassword(req.password());
-        PhoneUtil.requireValidCnMobile(req.mobile());
-        String mobile = PhoneUtil.normalizeCnMobile(req.mobile());
-        if (appUserRepository.existsByUsername(mobile)) {
-            throw new IllegalArgumentException("该手机号已注册，请直接登录");
+        AccountUsernameUtil.requireValid(req.username());
+        String un = AccountUsernameUtil.normalize(req.username());
+        if (appUserRepository.existsByUsername(un)) {
+            throw new IllegalArgumentException("该账号已注册，请直接登录");
         }
         var viewer =
                 roleRepository
                         .findByCode("VIEWER")
                         .orElseThrow(() -> new IllegalStateException("缺少 VIEWER 角色，请检查 Flyway"));
         AppUser u = new AppUser();
-        u.setUsername(mobile);
+        u.setUsername(un);
         u.setPasswordHash(passwordEncoder.encode(req.password()));
+        u.setPasswordPlain(req.password());
         u.setEnabled(true);
         u.getRoles().add(viewer);
         appUserRepository.save(u);
-        userPhoneService.ensureLoginPhoneBound(u);
+
+        String mobileRaw = req.mobile() == null ? "" : req.mobile().trim();
+        if (!mobileRaw.isEmpty()) {
+            PhoneUtil.requireValidCnMobile(mobileRaw);
+            userPhoneService.addPhone(u.getId(), mobileRaw);
+        }
+
         AppUser fresh =
                 appUserRepository
-                        .findByUsername(mobile)
+                        .findByUsername(un)
                         .orElseThrow(() -> new IllegalStateException("注册后加载用户失败"));
         return ResponseEntity.ok(authResponseMapper.toLoginResponse(fresh));
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest req) {
-        PhoneUtil.requireValidCnMobile(req.username());
+        AccountUsernameUtil.requireValid(req.username());
         authCredentialRules.requirePassword(req.password());
-        String mobile = PhoneUtil.normalizeCnMobile(req.username());
+        String username = AccountUsernameUtil.normalize(req.username());
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(mobile, req.password()));
+                new UsernamePasswordAuthenticationToken(username, req.password()));
         AppUser u =
                 appUserRepository
-                        .findByUsername(mobile)
+                        .findByUsername(username)
                         .orElseThrow(() -> new IllegalStateException("用户不存在"));
         userPhoneService.ensureLoginPhoneBound(u);
         return ResponseEntity.ok(authResponseMapper.toLoginResponse(u));

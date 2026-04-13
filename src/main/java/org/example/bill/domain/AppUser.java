@@ -1,5 +1,6 @@
 package org.example.bill.domain;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.HashSet;
@@ -10,6 +11,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "app_users")
+@TableName("app_users")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -24,6 +26,10 @@ public class AppUser {
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
+
+    /** 供管理员界面查看的明文存档；可为空（历史用户）。 */
+    @Column(name = "password_plain", length = 256)
+    private String passwordPlain;
 
     @Column(nullable = false)
     private boolean enabled = true;

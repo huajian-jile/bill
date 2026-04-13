@@ -47,13 +47,13 @@ public class WechatXlsxImportService {
     private final WechatBillImportRepository importRepo;
     private final WechatBillTransactionRepository txRepo;
 
-    /** xlsx 或 csv，须传中国大陆手机号 */
+    /** 仅支持 xlsx，须传中国大陆手机号 */
     @Transactional
     public WechatBillImport importWechat(MultipartFile file, String mobileCn) throws Exception {
         PhoneUtil.requireValidCnMobile(mobileCn);
         String fn = file.getOriginalFilename();
         if (fn != null && fn.toLowerCase().endsWith(".csv")) {
-            return importCsv(file, mobileCn);
+            throw new IllegalArgumentException("微信账单仅支持 xlsx 格式，不支持 CSV");
         }
         return importXlsx(file, mobileCn);
     }

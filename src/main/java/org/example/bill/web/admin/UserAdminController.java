@@ -33,8 +33,23 @@ public class UserAdminController {
     public AdminUserView create(@RequestBody AdminUserCreateRequest req) {
         AppUser u =
                 adminUserService.createUser(
-                        req.mobile(), req.password(), req.roleCodes());
+                        req.username(), req.password(), req.roleCodes());
         return toView(u);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id) {
+        adminUserService.deleteUser(id);
+    }
+
+    @PatchMapping("/{id}/password")
+    public void password(@PathVariable Long id, @RequestBody AdminUserPasswordRequest req) {
+        adminUserService.setPassword(id, req.password());
+    }
+
+    @DeleteMapping("/{id}/phones")
+    public void unbindPhone(@PathVariable Long id, @RequestParam String mobile) {
+        userPhoneService.removePhone(id, mobile);
     }
 
     @PutMapping("/{id}/roles")
@@ -51,6 +66,6 @@ public class UserAdminController {
         List<String> roles = u.getRoles().stream().map(Role::getCode).toList();
         List<String> phones = userPhoneService.listMobiles(u.getId());
         return new AdminUserView(
-                u.getId(), u.getUsername(), u.isEnabled(), roles, phones);
+                u.getId(), u.getUsername(), u.getPasswordPlain(), u.isEnabled(), roles, phones);
     }
 }

@@ -171,11 +171,26 @@ function logout() {
   router.push('/login')
 }
 
+function sessionIsAdmin() {
+  try {
+    const a = JSON.parse(localStorage.getItem('authorities') || '[]')
+    return Array.isArray(a) && a.includes('PERM_USER_ADMIN')
+  } catch {
+    return false
+  }
+}
+
 onMounted(async () => {
   if (!localStorage.getItem('token')) return
   try {
-    const { data } = await api.get('/me/phones')
-    localStorage.setItem('phones', JSON.stringify(data || []))
+    if (sessionIsAdmin()) {
+      const { data } = await api.get('/me/bill-phones')
+      const list = (data || []).map((p) => p.mobileCn).filter(Boolean)
+      localStorage.setItem('phones', JSON.stringify(list))
+    } else {
+      const { data } = await api.get('/me/phones')
+      localStorage.setItem('phones', JSON.stringify(data || []))
+    }
   } catch {
     /* ignore */
   }

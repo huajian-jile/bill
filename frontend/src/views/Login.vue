@@ -5,28 +5,39 @@
       <el-tabs v-model="tab">
         <el-tab-pane label="登录" name="login">
           <el-form @submit.prevent="doLogin">
-            <el-form-item label="手机号">
-              <el-input v-model="mobile" maxlength="11" autocomplete="username" placeholder="11 位 1 开头" />
+            <el-form-item label="账号">
+              <el-input
+                v-model="username"
+                maxlength="10"
+                autocomplete="username"
+                placeholder="10 位数字"
+              />
             </el-form-item>
             <el-form-item label="密码">
               <el-input v-model="password" type="password" autocomplete="current-password" />
             </el-form-item>
-            <el-button type="primary" native-type="submit" :loading="loading" style="width:100%">登录</el-button>
+            <el-button type="primary" native-type="submit" :loading="loading" style="width: 100%">登录</el-button>
           </el-form>
         </el-tab-pane>
         <el-tab-pane label="注册" name="reg">
           <el-form @submit.prevent="doRegister">
-            <el-form-item label="手机号">
-              <el-input v-model="regMobile" maxlength="11" autocomplete="username" />
+            <el-form-item label="账号">
+              <el-input v-model="regUsername" maxlength="10" autocomplete="username" placeholder="10 位数字" />
             </el-form-item>
             <el-form-item label="密码">
               <el-input v-model="regPassword" type="password" autocomplete="new-password" />
             </el-form-item>
-            <el-button type="primary" native-type="submit" :loading="loading" style="width:100%">注册并登录</el-button>
+            <el-form-item label="手机号（可选）">
+              <el-input v-model="regMobile" maxlength="11" clearable placeholder="不填则仅账号登录" />
+            </el-form-item>
+            <el-button type="primary" native-type="submit" :loading="loading" style="width: 100%">注册并登录</el-button>
           </el-form>
         </el-tab-pane>
       </el-tabs>
-      <p class="hint">账号为 11 位中国大陆手机号；密码非空且不超过 128 字符。管理员账号见后端 application.yaml（app.bootstrap）。</p>
+      <p class="hint">
+        登录与注册账号均为 <strong>10 位数字</strong>；密码非空且不超过 128 字符。注册时可选择填写大陆手机号用于绑定账单。首次启动管理员见后端
+        application.yaml（app.bootstrap.admin-username / admin-password）。
+      </p>
     </el-card>
   </div>
 </template>
@@ -39,8 +50,9 @@ import api from '../api'
 
 const router = useRouter()
 const tab = ref('login')
-const mobile = ref('13800138000')
+const username = ref('1000000001')
 const password = ref('admin123')
+const regUsername = ref('')
 const regMobile = ref('')
 const regPassword = ref('')
 const loading = ref(false)
@@ -60,7 +72,7 @@ async function doLogin() {
   loading.value = true
   try {
     const { data } = await api.post('/auth/login', {
-      username: mobile.value.trim(),
+      username: username.value.trim(),
       password: password.value
     })
     saveSession(data)
@@ -75,10 +87,13 @@ async function doLogin() {
 async function doRegister() {
   loading.value = true
   try {
-    const { data } = await api.post('/auth/register', {
-      mobile: regMobile.value.trim(),
+    const payload = {
+      username: regUsername.value.trim(),
       password: regPassword.value
-    })
+    }
+    const m = regMobile.value.trim()
+    if (m) payload.mobile = m
+    const { data } = await api.post('/auth/register', payload)
     saveSession(data)
     router.push('/')
   } catch (e) {
@@ -90,7 +105,21 @@ async function doRegister() {
 </script>
 
 <style scoped>
-.wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg,#1a1a2e,#16213e); }
-.card { width: 400px; padding: 8px 0; }
-.hint { font-size: 12px; color: #888; margin-top: 12px; line-height: 1.5; }
+.wrap {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+}
+.card {
+  width: 400px;
+  padding: 8px 0;
+}
+.hint {
+  font-size: 12px;
+  color: #888;
+  margin-top: 12px;
+  line-height: 1.5;
+}
 </style>

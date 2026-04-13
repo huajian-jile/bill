@@ -16,6 +16,7 @@ public class UserPhoneService {
 
     private final AppUserPhoneRepository appUserPhoneRepository;
     private final AppUserRepository appUserRepository;
+    private final BillImportLinkageService billImportLinkageService;
 
     @Transactional
     public void ensureLoginPhoneBound(AppUser user) {
@@ -29,6 +30,7 @@ public class UserPhoneService {
             row.setMobileCn(mobile);
             appUserPhoneRepository.save(row);
         }
+        billImportLinkageService.ensurePhoneNumberRow(mobile);
     }
 
     public List<String> listMobiles(Long userId) {
@@ -38,7 +40,8 @@ public class UserPhoneService {
     }
 
     /**
-     * 绑定额外手机号：全局唯一（不能与任一账号登录手机号或其它已绑定号重复）。
+     * 写入一条账号与手机号的关联（多对多：同一账号可多条，同一号码也可被多账号关联）。
+     * 业务上的审核/冲突策略由上层（如审核队列）负责；此处仅保证格式与同一账号下不重复插入。
      */
     @Transactional
     public void addPhone(Long userId, String rawMobile) {
@@ -49,15 +52,25 @@ public class UserPhoneService {
             ensureLoginPhoneBound(self);
             return;
         }
-        if (appUserRepository.existsByUsername(mobile)) {
-            throw new IllegalArgumentException("该手机号已被用作登录账号");
-        }
-        if (appUserPhoneRepository.existsByMobileCn(mobile)) {
-            throw new IllegalArgumentException("该手机号已被绑定");
+        if (appUserPhoneRepository.findByUserIdAndMobileCn(userId, mobile).isPresent()) {
+            billImportLinkageService.ensurePhoneNumberRow(mobile);
+            return;
         }
         AppUserPhone row = new AppUserPhone();
         row.setUserId(userId);
         row.setMobileCn(mobile);
         appUserPhoneRepository.save(row);
+        billImportLinkageService.ensurePhoneNumberRow(mobile);
+    }
+
+    @Transactional
+    public void removePhone(Long userId, String rawMobile) {
+        PhoneUtil.requireValidCnMobile(rawMobile);
+        String mobile = PhoneUtil.normalizeCnMobile(rawMobile);
+        AppUserPhone row =
+                appUserPhoneRepository
+                        .findByUserIdAndMobileCn(userId, mobile)
+                        .orElseThrow(() -> new IllegalArgumentException("未找到该绑定号码"));
+        appUserPhoneRepository.delete(row);
     }
 }

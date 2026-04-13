@@ -1,5 +1,6 @@
 package org.example.bill.domain;
 
+import com.baomidou.mybatisplus.annotation.TableName;
 import jakarta.persistence.*;
 import java.util.HashSet;
 import java.util.Set;
@@ -9,6 +10,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "roles")
+@TableName("roles")
 @Getter
 @Setter
 @NoArgsConstructor

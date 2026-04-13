@@ -9,4 +9,7 @@ public record MonthDailyRowDto(
         BigDecimal expenseTotal,
         BigDecimal neutralTotal,
         BigDecimal incomeGrowthPercent,
-        BigDecimal expenseGrowthPercent) {}
+        BigDecimal expenseGrowthPercent,
+        int incomeCount,
+        int expenseCount,
+        int neutralCount) {}

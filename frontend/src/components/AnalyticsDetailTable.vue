@@ -1,5 +1,13 @@
 <template>
-  <el-table :data="rows" stripe border size="small" :max-height="maxHeight" class="detail-tx-table">
+  <el-table
+    :data="rows"
+    stripe
+    border
+    size="small"
+    :max-height="maxHeight"
+    class="detail-tx-table"
+    :row-class-name="tableRowClassName"
+  >
     <el-table-column prop="tradeTime" label="交易时间" width="158" show-overflow-tooltip />
     <el-table-column label="渠道" width="52" align="center">
       <template #default="{ row }">
@@ -20,10 +28,38 @@
 </template>
 
 <script setup>
-defineProps({
+import { isNeutralIncomeExpense } from '../utils/incomeExpense'
+
+const props = defineProps({
   rows: { type: Array, default: () => [] },
-  maxHeight: { type: [Number, String], default: 320 }
+  maxHeight: { type: [Number, String], default: 320 },
+  /** 整表单一色调：收入绿、支出红、中性黄；空则按 perRowTone 或不着色 */
+  tone: { type: String, default: '' },
+  /** 为 true 时按行根据 incomeExpense 着色（仅在 tone 为空时生效） */
+  perRowTone: { type: Boolean, default: false }
 })
+
+function classifyRow(row) {
+  const ie = row.incomeExpense || ''
+  if (ie.includes('收入')) return 'income'
+  if (ie.includes('支出')) return 'expense'
+  if (isNeutralIncomeExpense(ie)) return 'neutral'
+  return 'other'
+}
+
+function tableRowClassName({ row }) {
+  const t = props.tone
+  if (t === 'income') return 'tx-row-income'
+  if (t === 'expense') return 'tx-row-expense'
+  if (t === 'neutral') return 'tx-row-neutral'
+  if (props.perRowTone) {
+    const k = classifyRow(row)
+    if (k === 'income') return 'tx-row-income'
+    if (k === 'expense') return 'tx-row-expense'
+    if (k === 'neutral') return 'tx-row-neutral'
+  }
+  return ''
+}
 
 function fmt(v) {
   if (v == null) return '—'
@@ -31,3 +67,27 @@ function fmt(v) {
   return Number.isFinite(n) ? n.toFixed(2) : '—'
 }
 </script>
+
+<style scoped>
+:deep(.el-table__body tr.tx-row-income > td) {
+  background: #f6ffed !important;
+  color: #237804;
+}
+:deep(.el-table__body tr.tx-row-expense > td) {
+  background: #fff2f0 !important;
+  color: #a8071a;
+}
+:deep(.el-table__body tr.tx-row-neutral > td) {
+  background: #fffbe6 !important;
+  color: #ad6800;
+}
+:deep(.el-table__body tr.tx-row-income:hover > td) {
+  background: #e6f7d5 !important;
+}
+:deep(.el-table__body tr.tx-row-expense:hover > td) {
+  background: #ffccc7 !important;
+}
+:deep(.el-table__body tr.tx-row-neutral:hover > td) {
+  background: #ffe58f !important;
+}
+</style>

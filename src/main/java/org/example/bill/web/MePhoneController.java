@@ -2,8 +2,10 @@ package org.example.bill.web;
 
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.example.bill.service.PhoneBindQueueService;
 import org.example.bill.service.UserPhoneService;
 import org.example.bill.web.dto.PhoneBindRequest;
+import org.example.bill.web.dto.PhoneBindResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -15,6 +17,7 @@ public class MePhoneController {
 
     private final SecurityUtil securityUtil;
     private final UserPhoneService userPhoneService;
+    private final PhoneBindQueueService phoneBindQueueService;
 
     @GetMapping
     public List<String> list() {
@@ -23,9 +26,10 @@ public class MePhoneController {
     }
 
     @PostMapping
-    public void add(@RequestBody PhoneBindRequest req) {
+    public PhoneBindResponse add(@RequestBody PhoneBindRequest req) {
         Long uid = requireUid();
-        userPhoneService.addPhone(uid, req.mobile());
+        boolean immediate = phoneBindQueueService.requestBindOrApproveDirect(uid, req.mobile());
+        return new PhoneBindResponse(immediate ? "immediate" : "pending_review");
     }
 
     private Long requireUid() {

@@ -219,11 +219,8 @@ public class AnalyticsService {
     public DayDetailDto dayDetail(
             LocalDate date,
             LocalDate compareDate,
-            Long wechatUserId,
-            String wechatUserIds,
-            String channelRaw) {
-        List<Long> userIds = resolveUserIds(wechatUserId, wechatUserIds);
-        AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
+            List<Long> userIds,
+            AnalyticsChannel channel) {
         DaySliceDto day = buildDaySlice(date, userIds, channel);
         DaySliceDto compare =
                 compareDate == null ? null : buildDaySlice(compareDate, userIds, channel);
@@ -232,11 +229,8 @@ public class AnalyticsService {
 
     public RollingIncomeExpenseDto rollingIncomeExpense(
             LocalDate endDate,
-            Long wechatUserId,
-            String wechatUserIds,
-            String channelRaw) {
-        List<Long> userIds = resolveUserIds(wechatUserId, wechatUserIds);
-        AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
+            List<Long> userIds,
+            AnalyticsChannel channel) {
         LocalDate start = endDate.minusDays(29);
         List<TransactionBriefDto> income = new ArrayList<>();
         List<TransactionBriefDto> expense = new ArrayList<>();
@@ -290,11 +284,8 @@ public class AnalyticsService {
 
     public DayAnalyticsDto day(
             LocalDate date,
-            Long wechatUserId,
-            String wechatUserIds,
-            String channelRaw) {
-        List<Long> userIds = resolveUserIds(wechatUserId, wechatUserIds);
-        AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
+            List<Long> userIds,
+            AnalyticsChannel channel) {
         DaySliceDto s = buildDaySlice(date, userIds, channel);
         return new DayAnalyticsDto(
                 s.date(),
@@ -307,15 +298,15 @@ public class AnalyticsService {
     }
 
     public List<MonthDailyRowDto> month(
-            int year, int month, Long wechatUserId, String wechatUserIds, String channelRaw) {
-        List<Long> userIds = resolveUserIds(wechatUserId, wechatUserIds);
-        AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
+            int year, int month, List<Long> userIds, AnalyticsChannel channel) {
         YearMonth ym = YearMonth.of(year, month);
         LocalDate start = ym.atDay(1);
         LocalDate end = ym.atEndOfMonth();
         Map<LocalDate, BigDecimal[]> sums = new TreeMap<>();
+        Map<LocalDate, int[]> txnCounts = new TreeMap<>();
         for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
             sums.put(d, new BigDecimal[] {BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO});
+            txnCounts.put(d, new int[3]);
         }
         if (channel == AnalyticsChannel.wechat || channel == AnalyticsChannel.merged) {
             for (WechatBillTransaction t : loadWechatTxs(userIds)) {
@@ -331,16 +322,20 @@ public class AnalyticsService {
                     continue;
                 }
                 BigDecimal[] arr = sums.get(d);
-                if (arr == null) {
+                int[] cnt = txnCounts.get(d);
+                if (arr == null || cnt == null) {
                     continue;
                 }
                 String ie = t.getIncomeExpense();
                 if (ie != null && ie.contains("收入")) {
                     arr[0] = arr[0].add(t.getAmountYuan());
+                    cnt[0]++;
                 } else if (ie != null && ie.contains("支出")) {
                     arr[1] = arr[1].add(t.getAmountYuan());
+                    cnt[1]++;
                 } else if (ie != null && ie.contains("中性")) {
                     arr[2] = arr[2].add(t.getAmountYuan());
+                    cnt[2]++;
                 }
             }
         }
@@ -358,16 +353,20 @@ public class AnalyticsService {
                     continue;
                 }
                 BigDecimal[] arr = sums.get(d);
-                if (arr == null) {
+                int[] cnt = txnCounts.get(d);
+                if (arr == null || cnt == null) {
                     continue;
                 }
                 String ie = t.getIncomeExpense();
                 if (ie != null && ie.contains("收入")) {
                     arr[0] = arr[0].add(t.getAmountYuan());
+                    cnt[0]++;
                 } else if (ie != null && ie.contains("支出")) {
                     arr[1] = arr[1].add(t.getAmountYuan());
+                    cnt[1]++;
                 } else if (ie != null && ie.contains("中性")) {
                     arr[2] = arr[2].add(t.getAmountYuan());
+                    cnt[2]++;
                 }
             }
         }
@@ -376,11 +375,12 @@ public class AnalyticsService {
         BigDecimal prevExp = null;
         for (Map.Entry<LocalDate, BigDecimal[]> e : sums.entrySet()) {
             BigDecimal[] v = e.getValue();
+            int[] c = txnCounts.getOrDefault(e.getKey(), new int[3]);
             BigDecimal gInc = growthPct(prevInc, v[0]);
             BigDecimal gExp = growthPct(prevExp, v[1]);
             out.add(
                     new MonthDailyRowDto(
-                            e.getKey(), v[0], v[1], v[2], gInc, gExp));
+                            e.getKey(), v[0], v[1], v[2], gInc, gExp, c[0], c[1], c[2]));
             prevInc = v[0];
             prevExp = v[1];
         }
@@ -405,9 +405,8 @@ public class AnalyticsService {
             String type,
             LocalDate from,
             LocalDate to,
-            Long wechatUserId,
-            String wechatUserIds,
-            String channelRaw) {
+            List<Long> userIds,
+            AnalyticsChannel channel) {
         RefundPairFinder.IncomeExpenseFilter f =
                 switch (type.toLowerCase()) {
                     case "income" -> RefundPairFinder.IncomeExpenseFilter.INCOME;
@@ -415,8 +414,6 @@ public class AnalyticsService {
                     case "neutral" -> RefundPairFinder.IncomeExpenseFilter.NEUTRAL;
                     default -> throw new IllegalArgumentException("type 应为 income|expense|neutral");
                 };
-        List<Long> userIds = resolveUserIds(wechatUserId, wechatUserIds);
-        AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
         BigDecimal total = BigDecimal.ZERO;
         long cnt = 0;
         if (channel == AnalyticsChannel.wechat || channel == AnalyticsChannel.merged) {
@@ -469,9 +466,7 @@ public class AnalyticsService {
     }
 
     public RealDataAnalyticsDto real(
-            LocalDate from, LocalDate to, Long wechatUserId, String wechatUserIds, String channelRaw) {
-        List<Long> userIds = resolveUserIds(wechatUserId, wechatUserIds);
-        AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
+            LocalDate from, LocalDate to, List<Long> userIds, AnalyticsChannel channel) {
         BigDecimal inc = BigDecimal.ZERO;
         BigDecimal exp = BigDecimal.ZERO;
         BigDecimal neu = BigDecimal.ZERO;
@@ -516,6 +511,217 @@ public class AnalyticsService {
         Collections.sort(excludedIds);
         return new RealDataAnalyticsDto(
                 from, to, inc, exp, neu, excludedCount, excludedIds);
+    }
+
+    /** 按交易对方聚合；wechatUserIds 为 null 时不限制导入用户（与既有分析接口一致）。 */
+    public CounterpartyBoardDto counterpartyBoard(
+            LocalDate from,
+            LocalDate to,
+            List<Long> wechatUserIds,
+            AnalyticsChannel channel,
+            boolean excludeRefundPairs) {
+        Map<String, CounterpartyAgg> map = new HashMap<>();
+        if (channel == AnalyticsChannel.wechat || channel == AnalyticsChannel.merged) {
+            List<WechatBillTransaction> inRange =
+                    filterWechatInRange(loadWechatTxs(wechatUserIds), from, to);
+            Set<Long> excluded =
+                    excludeRefundPairs
+                            ? RefundPairFinder.findPairedTransactionIds(inRange)
+                            : Set.of();
+            for (WechatBillTransaction t : inRange) {
+                if (excludeRefundPairs && excluded.contains(t.getId())) {
+                    continue;
+                }
+                if (t.getAmountYuan() == null) {
+                    continue;
+                }
+                IncomeExpenseKind k = classifyIncomeExpense(t.getIncomeExpense());
+                if (k == IncomeExpenseKind.SKIP) {
+                    continue;
+                }
+                String ck = counterpartyKey(t.getCounterparty());
+                map.computeIfAbsent(ck, x -> new CounterpartyAgg()).addWechat(t, k);
+            }
+        }
+        if (channel == AnalyticsChannel.alipay || channel == AnalyticsChannel.merged) {
+            List<AlipayBillTransaction> inRange =
+                    filterAlipayInRange(loadAlipayTxs(wechatUserIds), from, to);
+            Set<Long> excluded =
+                    excludeRefundPairs
+                            ? RefundPairFinder.findPairedAlipayTransactionIds(inRange)
+                            : Set.of();
+            for (AlipayBillTransaction t : inRange) {
+                if (excludeRefundPairs && excluded.contains(t.getId())) {
+                    continue;
+                }
+                if (t.getAmountYuan() == null) {
+                    continue;
+                }
+                IncomeExpenseKind k = classifyIncomeExpense(t.getIncomeExpense());
+                if (k == IncomeExpenseKind.SKIP) {
+                    continue;
+                }
+                String ck = counterpartyKey(t.getCounterparty());
+                map.computeIfAbsent(ck, x -> new CounterpartyAgg()).addAlipay(t, k);
+            }
+        }
+        BigDecimal grandI = BigDecimal.ZERO;
+        BigDecimal grandE = BigDecimal.ZERO;
+        BigDecimal grandN = BigDecimal.ZERO;
+        List<CounterpartyGroupSummaryDto> groups = new ArrayList<>();
+        for (Map.Entry<String, CounterpartyAgg> e : map.entrySet()) {
+            CounterpartyAgg a = e.getValue();
+            String label = e.getKey().isEmpty() ? "（未填写）" : e.getKey();
+            groups.add(
+                    new CounterpartyGroupSummaryDto(
+                            label,
+                            a.incomeTotal,
+                            a.expenseTotal,
+                            a.neutralTotal,
+                            a.incomeCount,
+                            a.expenseCount,
+                            a.neutralCount,
+                            a.lastTradeTime));
+            grandI = grandI.add(a.incomeTotal);
+            grandE = grandE.add(a.expenseTotal);
+            grandN = grandN.add(a.neutralTotal);
+        }
+        groups.sort(
+                Comparator.comparing(CounterpartyGroupSummaryDto::expenseTotal)
+                        .reversed()
+                        .thenComparing(CounterpartyGroupSummaryDto::counterparty));
+        return new CounterpartyBoardDto(groups, grandI, grandE, grandN);
+    }
+
+    public List<TransactionBriefDto> counterpartyDetail(
+            String counterpartyQuery,
+            LocalDate from,
+            LocalDate to,
+            List<Long> wechatUserIds,
+            AnalyticsChannel channel,
+            boolean excludeRefundPairs) {
+        List<TransactionBriefDto> out = new ArrayList<>();
+        if (channel == AnalyticsChannel.wechat || channel == AnalyticsChannel.merged) {
+            List<WechatBillTransaction> inRange =
+                    filterWechatInRange(loadWechatTxs(wechatUserIds), from, to);
+            Set<Long> excluded =
+                    excludeRefundPairs
+                            ? RefundPairFinder.findPairedTransactionIds(inRange)
+                            : Set.of();
+            for (WechatBillTransaction t : inRange) {
+                if (excludeRefundPairs && excluded.contains(t.getId())) {
+                    continue;
+                }
+                if (!counterpartyMatches(t.getCounterparty(), counterpartyQuery)) {
+                    continue;
+                }
+                out.add(toBriefWechat(t));
+            }
+        }
+        if (channel == AnalyticsChannel.alipay || channel == AnalyticsChannel.merged) {
+            List<AlipayBillTransaction> inRange =
+                    filterAlipayInRange(loadAlipayTxs(wechatUserIds), from, to);
+            Set<Long> excluded =
+                    excludeRefundPairs
+                            ? RefundPairFinder.findPairedAlipayTransactionIds(inRange)
+                            : Set.of();
+            for (AlipayBillTransaction t : inRange) {
+                if (excludeRefundPairs && excluded.contains(t.getId())) {
+                    continue;
+                }
+                if (!counterpartyMatches(t.getCounterparty(), counterpartyQuery)) {
+                    continue;
+                }
+                out.add(toBriefAlipay(t));
+            }
+        }
+        Comparator<String> tc = Comparator.nullsLast(String::compareTo);
+        out.sort(Comparator.comparing(TransactionBriefDto::tradeTime, tc));
+        return out;
+    }
+
+    private static String counterpartyKey(String c) {
+        if (c == null || c.isBlank()) {
+            return "";
+        }
+        return c.trim();
+    }
+
+    private static boolean counterpartyMatches(String txCounterparty, String queryCounterparty) {
+        String q = queryCounterparty == null ? "" : queryCounterparty.trim();
+        String k = counterpartyKey(txCounterparty);
+        if ("（未填写）".equals(q)) {
+            return k.isEmpty();
+        }
+        return k.equals(q) || (txCounterparty != null && txCounterparty.trim().equals(q));
+    }
+
+    private static String laterTradeTime(String a, String b) {
+        if (a == null) {
+            return b;
+        }
+        if (b == null) {
+            return a;
+        }
+        var pa = TradeTimeUtil.parse(a);
+        var pb = TradeTimeUtil.parse(b);
+        if (pa.isEmpty()) {
+            return b;
+        }
+        if (pb.isEmpty()) {
+            return a;
+        }
+        return pa.get().isBefore(pb.get()) ? b : a;
+    }
+
+    private static final class CounterpartyAgg {
+        BigDecimal incomeTotal = BigDecimal.ZERO;
+        BigDecimal expenseTotal = BigDecimal.ZERO;
+        BigDecimal neutralTotal = BigDecimal.ZERO;
+        int incomeCount;
+        int expenseCount;
+        int neutralCount;
+        String lastTradeTime;
+
+        void addWechat(WechatBillTransaction t, IncomeExpenseKind k) {
+            lastTradeTime = laterTradeTime(lastTradeTime, t.getTradeTime());
+            switch (k) {
+                case INCOME -> {
+                    incomeTotal = incomeTotal.add(t.getAmountYuan());
+                    incomeCount++;
+                }
+                case EXPENSE -> {
+                    expenseTotal = expenseTotal.add(t.getAmountYuan());
+                    expenseCount++;
+                }
+                case NEUTRAL -> {
+                    neutralTotal = neutralTotal.add(t.getAmountYuan());
+                    neutralCount++;
+                }
+                default -> {
+                }
+            }
+        }
+
+        void addAlipay(AlipayBillTransaction t, IncomeExpenseKind k) {
+            lastTradeTime = laterTradeTime(lastTradeTime, t.getTradeTime());
+            switch (k) {
+                case INCOME -> {
+                    incomeTotal = incomeTotal.add(t.getAmountYuan());
+                    incomeCount++;
+                }
+                case EXPENSE -> {
+                    expenseTotal = expenseTotal.add(t.getAmountYuan());
+                    expenseCount++;
+                }
+                case NEUTRAL -> {
+                    neutralTotal = neutralTotal.add(t.getAmountYuan());
+                    neutralCount++;
+                }
+                default -> {
+                }
+            }
+        }
     }
 
     private static List<WechatBillTransaction> filterWechatInRange(

@@ -6,6 +6,8 @@ import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "bkp_wechat_bill_transactions")
@@ -29,6 +31,7 @@ public class BkpWechatBillTransaction {
     @Column(name = "bill_channel", nullable = false, length = 16)
     private String billChannel = "WECHAT";
 
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "row_hash", length = 64)
     private String rowHash;
 

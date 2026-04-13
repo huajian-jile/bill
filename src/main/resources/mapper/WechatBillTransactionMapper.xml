@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.example.bill.mapper.WechatBillTransactionMapper">
+    <select id="selectActiveByWechatUserIds" resultType="org.example.bill.domain.WechatBillTransaction">
+        SELECT t.* FROM wechat_bill_transactions t
+        WHERE t.bill_import_id IN (SELECT id FROM wechat_bill_imports WHERE user_id IN
+        <foreach collection="userIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        )
+        AND t.is_archived = false
+    </select>
+
+    <!-- 按所属人：流水行 person_id、微信用户 person_id，或与 person.phone_id 一致的 phone_id（兼容未回填 person_id 的老数据） -->
+    <select id="selectActiveByPersonIds" resultType="org.example.bill.domain.WechatBillTransaction">
+        SELECT DISTINCT t.* FROM wechat_bill_transactions t
+        INNER JOIN wechat_bill_imports i ON t.bill_import_id = i.id
+        INNER JOIN wechat_users wu ON i.user_id = wu.id
+        WHERE t.is_archived = false
+        AND (
+            t.person_id IN
+            <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            OR wu.person_id IN
+            <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            OR EXISTS (
+                SELECT 1 FROM person p
+                WHERE p.id IN
+                <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+                AND p.phone_id IS NOT NULL
+                AND wu.phone_id IS NOT NULL
+                AND p.phone_id = wu.phone_id
+            )
+            OR t.phone_id IN (
+                SELECT pp.phone_id FROM person_phone pp
+                WHERE pp.person_id IN
+                <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            )
+            OR wu.phone_id IN (
+                SELECT pp.phone_id FROM person_phone pp
+                WHERE pp.person_id IN
+                <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            )
+        )
+    </select>
+
+    <select id="selectActiveByPhoneIds" resultType="org.example.bill.domain.WechatBillTransaction">
+        SELECT t.* FROM wechat_bill_transactions t
+        WHERE t.is_archived = false
+        AND t.phone_id IN
+        <foreach collection="phoneIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+</mapper>
