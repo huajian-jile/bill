@@ -135,6 +135,10 @@ public class WechatXlsxImportService {
                                     return wechatUserRepo.save(u);
                                 });
 
+        // 建立 person / phone 关联链路
+        billImportLinkageService.ensurePhoneAndPersonLinked(wu, mobileCn);
+        wu = wechatUserRepo.findById(wu.getId()).orElse(wu);
+
         WechatBillImport imp = new WechatBillImport();
         imp.setUserId(wu.getId());
         imp.setPersonId(wu.getPersonId());
@@ -226,7 +230,6 @@ public class WechatXlsxImportService {
 
             while ((line = reader.readLine()) != null) {
                 lineNum++;
-                System.out.println("[DEBUG] CSV line " + lineNum + ": " + line);
 
                 if (!headerFound) {
                     // 前面的行是统计信息，解析meta
@@ -236,7 +239,6 @@ public class WechatXlsxImportService {
                         // 解析表头
                         headers = parseCsvHeader(line);
                         headerFound = true;
-                        System.out.println("[DEBUG] CSV header found at line " + lineNum + ": " + headers);
                     }
                     continue;
                 }
@@ -261,10 +263,6 @@ public class WechatXlsxImportService {
                 col.put(headers.get(i).trim(), i);
             }
         }
-
-        System.out.println("[DEBUG] CSV meta resolved: " + meta);
-        System.out.println("[DEBUG] CSV headers: " + headers);
-        System.out.println("[DEBUG] CSV data rows count: " + dataRows.size());
 
         String channel = "ALIPAY";
         String nick = "账单用户-" + PhoneUtil.normalizeCnMobile(mobileCn);
