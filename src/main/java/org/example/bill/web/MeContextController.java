@@ -54,4 +54,16 @@ public class MeContextController {
         }
         return userBillPhoneService.listOptions(uid);
     }
+
+    /**
+     * 检查当前用户是否有任何导入记录
+     */
+    @GetMapping("/has-import")
+    public boolean hasImport() {
+        Long uid = securityUtil.currentUserId();
+        if (uid == null) {
+            return false;
+        }
+        return wechatBillImportRepository.countByUserId(uid) > 0;
+    }
 }

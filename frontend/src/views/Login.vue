@@ -68,6 +68,36 @@ function saveSession(data) {
   }
 }
 
+/** 登录成功后：根据手机绑定和导入状态决定跳转 */
+async function redirectAfterLogin() {
+  // 检查是否有已绑定的手机号
+  const phones = JSON.parse(localStorage.getItem('phones') || '[]')
+  if (!phones || phones.length === 0) {
+    // 没有绑定手机号，跳转到绑定页面
+    router.push('/phones')
+    return
+  }
+  // 有绑定手机号，检查是否有导入记录
+  try {
+    const { data } = await api.get('/me/phones')
+    const phoneList = data || []
+    if (phoneList.length === 0) {
+      router.push('/phones')
+      return
+    }
+    // 调用API检查是否有导入
+    const { data: hasImport } = await api.get('/me/has-import')
+    if (!hasImport) {
+      router.push('/import')
+    } else {
+      router.push('/analytics')
+    }
+  } catch {
+    // 出错默认跳转到导入页面
+    router.push('/import')
+  }
+}
+
 async function doLogin() {
   loading.value = true
   try {
@@ -76,7 +106,7 @@ async function doLogin() {
       password: password.value
     })
     saveSession(data)
-    router.push('/')
+    await redirectAfterLogin()
   } catch (e) {
     ElMessage.error(e.response?.data?.message || '登录失败')
   } finally {
@@ -95,7 +125,13 @@ async function doRegister() {
     if (m) payload.mobile = m
     const { data } = await api.post('/auth/register', payload)
     saveSession(data)
-    router.push('/')
+    // 注册时如果没填手机号，跳转到绑定
+    if (!m) {
+      router.push('/phones')
+    } else {
+      // 填写了手机号，登录后检查导入状态
+      await redirectAfterLogin()
+    }
   } catch (e) {
     ElMessage.error(e.response?.data?.message || '注册失败')
   } finally {

@@ -105,15 +105,7 @@
         </div>
       </div>
       <div class="top-bar-actions">
-        <el-button
-          :type="useReal ? 'primary' : 'default'"
-          plain
-          class="real-btn"
-          title="在当前统计与流水列表中剔除「同一天、同金额、同一交易对方」的一收一支（如转账与原路退回）；无此类成对记录时数据不变。"
-          @click="toggleReal"
-        >
-          真实收支
-        </el-button>
+        <el-button plain @click="goGroupBoard">分组看板</el-button>
         <el-button plain @click="goImport">导入账单</el-button>
         <el-button plain @click="goPhoneBind">绑定手机号</el-button>
       </div>
@@ -438,6 +430,12 @@
       @closed="onMonthDrillClosed"
     >
       <div v-loading="monthDrillLoading" class="month-drill-inner">
+        <!-- 返回按钮 -->
+        <div v-if="drillBackLabel" class="drill-back-bar">
+          <el-button size="small" @click="drillGoBack">
+            ← {{ drillBackLabel }}
+          </el-button>
+        </div>
         <!-- 某日：与主页面「某日」一致 -->
         <template v-if="drillMode === 'day'">
           <p v-if="monthDrillDetail?.day" class="drill-hint">与「某日」相同渠道与所属人筛选；以下为该日按小时趋势与流水。</p>
@@ -591,6 +589,9 @@ function goImport() {
 function goPhoneBind() {
   router.push('/phones')
 }
+function goGroupBoard() {
+  router.push('/analytics/group')
+}
 
 function yesterdayYmd() {
   const d = new Date()
@@ -646,6 +647,8 @@ const monthDrillDate = ref('')
 const monthDrillDetail = ref(null)
 /** 'day' | 'month' | 'year' — 与主页面「某日/某月/某年」布局对应 */
 const drillMode = ref('day')
+/** 抽屉钻取的上级模式，用于返回按钮 */
+const drillParentMode = ref(null)
 const drillMonthRows = ref([])
 const drillYearMonthRows = ref([])
 const drillMonthY = ref(null)
@@ -1205,6 +1208,8 @@ async function openDrillMonthFromYearRow(row) {
   const y = parseInt(m[1], 10)
   const mo = parseInt(m[2], 10)
   disposeDrillChartsOnly()
+  // 保存当前模式作为上级
+  drillParentMode.value = drillMode.value
   drillMode.value = 'month'
   drillMonthY.value = y
   drillMonthM.value = mo
@@ -1238,6 +1243,7 @@ async function openDrillYearFromAllRow(row) {
   const y = parseInt(String(row.monthLabel ?? '').trim(), 10)
   if (!Number.isFinite(y) || y < 1900 || y > 2100) return
   disposeDrillChartsOnly()
+  drillParentMode.value = 'all'
   drillMode.value = 'year'
   drillYearOnly.value = y
   drillMonthRows.value = []
@@ -1285,6 +1291,7 @@ async function openMonthDayDrill(row) {
   drillTxFilter.amountMax = null
   drillTimeAscending.value = true
   disposeDrillChartsOnly()
+  drillParentMode.value = drillMode.value
   drillMode.value = 'day'
   drillMonthRows.value = []
   drillYearMonthRows.value = []
@@ -1311,12 +1318,93 @@ function onMonthDrillClosed() {
   disposeDrillChartsOnly()
   monthDrillDetail.value = null
   drillMode.value = 'day'
+  drillParentMode.value = null
   drillMonthRows.value = []
   drillYearMonthRows.value = []
   drillMonthY.value = null
   drillMonthM.value = null
   drillYearOnly.value = null
 }
+
+/** 抽屉内返回上级 */
+function drillGoBack() {
+  const parent = drillParentMode.value
+  if (parent === 'year') {
+    // 从某日返回到某年，需要重新加载该年数据
+    const y = drillYearOnly.value
+    if (y) {
+      drillMode.value = 'year'
+      drillMonthRows.value = []
+      drillYearMonthRows.value = []
+      monthDrillDetail.value = null
+      drillMonthFlowFilter.value = 'all'
+      monthDrillLoading.value = true
+      // 重新加载该年12个月的数据
+      Promise.all(
+        Array.from({ length: 12 }, (_, i) =>
+          api.get('/analytics/month', { params: { year: y, month: i + 1, ...analyticsUserParams() } })
+            .then(r => ({ m: i + 1, rows: r.data }))
+        )
+      ).then(results => {
+        drillYearMonthRows.value = results.map(({ m, rows }) =>
+          mapYearMonthRow(y, m, (rows || []).map(normalizeMonthDailyRow))
+        )
+        nextTick().then(() => {
+          if (drillYearTrendChartEl.value && drillYearMonthRows.value.length) {
+            chartDrillYear = echarts.init(drillYearTrendChartEl.value)
+            chartDrillYear.setOption(buildYearMonthlyTrendOption(drillYearMonthRows.value))
+            bindYearMonthChartClick(chartDrillYear, () => drillYearMonthRows.value)
+          }
+        })
+      }).catch(e => {
+        ElMessage.error(e.response?.data?.message || '加载年度数据失败')
+      }).finally(() => {
+        monthDrillLoading.value = false
+      })
+    }
+    drillParentMode.value = 'all'
+  } else if (parent === 'month') {
+    // 从某日返回到某月
+    const y = drillMonthY.value
+    const mo = drillMonthM.value
+    if (y && mo) {
+      drillMode.value = 'month'
+      drillMonthFlowFilter.value = 'all'
+      drillYearMonthRows.value = []
+      monthDrillDetail.value = null
+      monthDrillLoading.value = true
+      api.get('/analytics/month', {
+        params: { year: y, month: mo, ...analyticsUserParams() }
+      }).then(r => {
+        drillMonthRows.value = (r.data || []).map(normalizeMonthDailyRow)
+        nextTick().then(() => {
+          if (drillMonthTrendChartEl.value && drillMonthRows.value.length) {
+            chartDrillMonth = echarts.init(drillMonthTrendChartEl.value)
+            chartDrillMonth.setOption(buildMonthDailyTrendOption(drillMonthRows.value, `${y}-${pad(mo)} 月`))
+            bindMonthTrendChartClick(chartDrillMonth, () => drillMonthRows.value)
+          }
+        })
+      }).catch(e => {
+        ElMessage.error(e.response?.data?.message || '加载月度数据失败')
+      }).finally(() => {
+        monthDrillLoading.value = false
+      })
+    }
+    drillParentMode.value = 'year'
+  } else {
+    // 关闭抽屉
+    monthDrillVisible.value = false
+  }
+}
+
+/** 返回按钮文字 */
+const drillBackLabel = computed(() => {
+  const p = drillParentMode.value
+  if (p === 'year') return '返回某年'
+  if (p === 'month') return '返回某月'
+  if (p === 'all') return '返回全部'
+  return ''
+})
 
 const drillTableRows = computed(() => procDrillDaySlice())
 
@@ -2120,6 +2208,10 @@ onUnmounted(() => {
 }
 .drill-toolbar {
   margin-top: 4px;
+}
+
+.drill-back-bar {
+  margin-bottom: 12px;
 }
 
 .table-block {

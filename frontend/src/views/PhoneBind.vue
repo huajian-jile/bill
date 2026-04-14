@@ -45,8 +45,11 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '../api'
+
+const router = useRouter()
 
 const list = ref([])
 const requests = ref([])
@@ -102,7 +105,15 @@ async function add() {
     if (data?.status === 'pending_review') {
       ElMessage.success('已提交审核，管理员通过后即可绑定')
     } else {
-      ElMessage.success('已绑定')
+      ElMessage.success('已绑定，即将跳转到导入页面')
+      // 更新本地存储的手机号列表
+      const phones = JSON.parse(localStorage.getItem('phones') || '[]')
+      if (!phones.includes(mobile.value)) {
+        phones.push(mobile.value)
+        localStorage.setItem('phones', JSON.stringify(phones))
+      }
+      // 跳转到导入页面
+      router.push('/import')
     }
     mobile.value = ''
     await load()

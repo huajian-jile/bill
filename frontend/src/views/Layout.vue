@@ -53,14 +53,6 @@
                   导入账单
                 </router-link>
                 <router-link
-                  to="/bills"
-                  class="mega-l3"
-                  active-class="mega-l3-active"
-                  @click="onMegaLinkClick"
-                >
-                  账单数据
-                </router-link>
-                <router-link
                   to="/phones"
                   class="mega-l3"
                   active-class="mega-l3-active"
@@ -146,7 +138,6 @@ const billPaths = [
   '/analytics',
   '/analytics/group',
   '/import',
-  '/bills',
   '/phones',
   '/admin/users',
   '/admin/phone-binds'

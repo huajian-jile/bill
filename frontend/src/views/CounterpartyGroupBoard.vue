@@ -65,15 +65,7 @@
         </div>
       </div>
       <div class="top-bar-actions">
-        <el-button
-          :type="useReal ? 'primary' : 'default'"
-          plain
-          class="real-btn"
-          title="在当前统计中剔除「同一天、同金额、同一交易对方」的一收一支（如转账与原路退回）。"
-          @click="toggleReal"
-        >
-          真实收支
-        </el-button>
+        <el-button plain @click="goAnalytics">分析看板</el-button>
         <el-button plain @click="goImport">导入账单</el-button>
         <el-button plain @click="goPhoneBind">绑定手机号</el-button>
       </div>
@@ -593,6 +585,9 @@ function goImport() {
 }
 function goPhoneBind() {
   router.push('/phones')
+}
+function goAnalytics() {
+  router.push('/analytics')
 }
 
 function toggleReal() {

@@ -9,4 +9,6 @@ public interface WechatBillImportRepository extends JpaRepository<WechatBillImpo
     List<WechatBillImport> findByUserId(Long userId);
 
     Optional<WechatBillImport> findTopByMobileCnOrderByIdAsc(String mobileCn);
+
+    long countByUserId(Long userId);
 }

@@ -49,8 +49,11 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import api from '../api'
+
+const router = useRouter()
 
 const mobileCn = ref('')
 const channel = ref('wechat')
@@ -147,9 +150,13 @@ async function upload() {
       ok === 1 && lastId != null
         ? `导入成功 importId=${lastId}`
         : `共 ${ok} 个文件导入成功${lastId != null ? `，最后 importId=${lastId}` : ''}`
-    ElMessage.success(`已导入 ${ok} 个文件`)
+    ElMessage.success(`已导入 ${ok} 个文件，即将跳转到分析看板`)
     uploadRef.value?.clearFiles()
     files.value = []
+    // 跳转到分析看板
+    setTimeout(() => {
+      router.push('/analytics')
+    }, 1000)
   } catch (e) {
     const d = e.response?.data
     const msg =
