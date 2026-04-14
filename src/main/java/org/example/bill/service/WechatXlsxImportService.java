@@ -387,6 +387,7 @@ public class WechatXlsxImportService {
             WechatBillTransaction t,
             Long billImportId,
             Instant now) {
+        existing.setChannel(t.getChannel());
         existing.setBillImportId(billImportId);
         existing.setPersonId(t.getPersonId());
         existing.setPhoneId(t.getPhoneId());

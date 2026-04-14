@@ -776,7 +776,7 @@ let chartYearTrendCmp = null
 let chartAllTrend = null
 
 function analyticsUserParams() {
-  const p = { channel: channel.value, excludeRefundPairs: useReal.value }
+  const p = { channel: channel.value }
   if (multiPhone.value && phoneIds.value?.length) {
     p.phoneIds = phoneIds.value.join(',')
   } else if (phoneId.value != null && phoneId.value !== '') {
