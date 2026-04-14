@@ -131,8 +131,7 @@ public class AnalyticsService {
     }
 
     public DayDetailDto dayDetail(
-            LocalDate date, LocalDate compareDate, Long wechatUserId, String wechatUserIds, String channelRaw) {
-        List<Long> userIds = resolveUserIds(wechatUserId, wechatUserIds);
+            LocalDate date, LocalDate compareDate, List<Long> userIds, String channelRaw) {
         AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
         DaySliceDto day = buildDaySlice(date, userIds, channel);
         DaySliceDto compare = compareDate == null ? null : buildDaySlice(compareDate, userIds, channel);
@@ -140,8 +139,7 @@ public class AnalyticsService {
     }
 
     public RollingIncomeExpenseDto rollingIncomeExpense(
-            LocalDate endDate, Long wechatUserId, String wechatUserIds, String channelRaw) {
-        List<Long> userIds = resolveUserIds(wechatUserId, wechatUserIds);
+            LocalDate endDate, List<Long> userIds, String channelRaw) {
         AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
         LocalDate start = endDate.minusDays(29);
         List<TransactionBriefDto> income = new ArrayList<>();
@@ -167,8 +165,7 @@ public class AnalyticsService {
         return new RollingIncomeExpenseDto(start, endDate, income, expense);
     }
 
-    public DayAnalyticsDto day(LocalDate date, Long wechatUserId, String wechatUserIds, String channelRaw) {
-        List<Long> userIds = resolveUserIds(wechatUserId, wechatUserIds);
+    public DayAnalyticsDto day(LocalDate date, List<Long> userIds, String channelRaw) {
         AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
         DaySliceDto s = buildDaySlice(date, userIds, channel);
         return new DayAnalyticsDto(
@@ -177,8 +174,7 @@ public class AnalyticsService {
     }
 
     public List<MonthDailyRowDto> month(
-            int year, int month, Long wechatUserId, String wechatUserIds, String channelRaw) {
-        List<Long> userIds = resolveUserIds(wechatUserId, wechatUserIds);
+            int year, int month, List<Long> userIds, String channelRaw) {
         AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
         YearMonth ym = YearMonth.of(year, month);
         LocalDate start = ym.atDay(1);
@@ -235,14 +231,13 @@ public class AnalyticsService {
 
     public TypeAnalyticsDto byType(
             String type, LocalDate from, LocalDate to,
-            Long wechatUserId, String wechatUserIds, String channelRaw) {
+            List<Long> userIds, String channelRaw) {
         RefundPairFinder.IncomeExpenseFilter f = switch (type.toLowerCase()) {
             case "income" -> RefundPairFinder.IncomeExpenseFilter.INCOME;
             case "expense" -> RefundPairFinder.IncomeExpenseFilter.EXPENSE;
             case "neutral" -> RefundPairFinder.IncomeExpenseFilter.NEUTRAL;
             default -> throw new IllegalArgumentException("type 应为 income|expense|neutral");
         };
-        List<Long> userIds = resolveUserIds(wechatUserId, wechatUserIds);
         AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
         BigDecimal total = BigDecimal.ZERO;
         long cnt = 0;
@@ -267,8 +262,7 @@ public class AnalyticsService {
 
     public RealDataAnalyticsDto real(
             LocalDate from, LocalDate to,
-            Long wechatUserId, String wechatUserIds, String channelRaw) {
-        List<Long> userIds = resolveUserIds(wechatUserId, wechatUserIds);
+            List<Long> userIds, String channelRaw) {
         AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
         BigDecimal inc = BigDecimal.ZERO;
         BigDecimal exp = BigDecimal.ZERO;

@@ -40,10 +40,11 @@ public class AnalyticsController {
     @PreAuthorize("isAuthenticated()")
     public DayAnalyticsDto day(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(required = false) Long wechatUserId,
-            @RequestParam(required = false) String wechatUserIds,
+            @RequestParam(required = false) Long phoneId,
+            @RequestParam(required = false) String phoneIds,
             @RequestParam(defaultValue = "wechat") String channel) {
-        return analyticsService.day(date, wechatUserId, wechatUserIds, channel);
+        List<Long> uids = analyticsScopeService.resolveWechatUserIds(currentUserIsAdmin(), phoneId, phoneIds);
+        return analyticsService.day(date, uids, channel);
     }
 
     /** 某日收支明细 + 可选对比日（同一结构） */
@@ -53,10 +54,11 @@ public class AnalyticsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     LocalDate compareDate,
-            @RequestParam(required = false) Long wechatUserId,
-            @RequestParam(required = false) String wechatUserIds,
+            @RequestParam(required = false) Long phoneId,
+            @RequestParam(required = false) String phoneIds,
             @RequestParam(defaultValue = "wechat") String channel) {
-        return analyticsService.dayDetail(date, compareDate, wechatUserId, wechatUserIds, channel);
+        List<Long> uids = analyticsScopeService.resolveWechatUserIds(currentUserIsAdmin(), phoneId, phoneIds);
+        return analyticsService.dayDetail(date, compareDate, uids, channel);
     }
 
     /** 近 30 天收入/支出明细（不含中性），用于中性区下方展示 */
@@ -64,10 +66,11 @@ public class AnalyticsController {
     @PreAuthorize("isAuthenticated()")
     public RollingIncomeExpenseDto rollingIncomeExpense(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(required = false) Long wechatUserId,
-            @RequestParam(required = false) String wechatUserIds,
+            @RequestParam(required = false) Long phoneId,
+            @RequestParam(required = false) String phoneIds,
             @RequestParam(defaultValue = "wechat") String channel) {
-        return analyticsService.rollingIncomeExpense(endDate, wechatUserId, wechatUserIds, channel);
+        List<Long> uids = analyticsScopeService.resolveWechatUserIds(currentUserIsAdmin(), phoneId, phoneIds);
+        return analyticsService.rollingIncomeExpense(endDate, uids, channel);
     }
 
     /** 某月每日收支 + 较前一日涨幅 */
@@ -76,10 +79,11 @@ public class AnalyticsController {
     public List<MonthDailyRowDto> month(
             @RequestParam int year,
             @RequestParam int month,
-            @RequestParam(required = false) Long wechatUserId,
-            @RequestParam(required = false) String wechatUserIds,
+            @RequestParam(required = false) Long phoneId,
+            @RequestParam(required = false) String phoneIds,
             @RequestParam(defaultValue = "wechat") String channel) {
-        return analyticsService.month(year, month, wechatUserId, wechatUserIds, channel);
+        List<Long> uids = analyticsScopeService.resolveWechatUserIds(currentUserIsAdmin(), phoneId, phoneIds);
+        return analyticsService.month(year, month, uids, channel);
     }
 
     /** 收入 / 支出 / 中性 汇总 */
@@ -91,10 +95,11 @@ public class AnalyticsController {
                     LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     LocalDate to,
-            @RequestParam(required = false) Long wechatUserId,
-            @RequestParam(required = false) String wechatUserIds,
+            @RequestParam(required = false) Long phoneId,
+            @RequestParam(required = false) String phoneIds,
             @RequestParam(defaultValue = "wechat") String channel) {
-        return analyticsService.byType(type, from, to, wechatUserId, wechatUserIds, channel);
+        List<Long> uids = analyticsScopeService.resolveWechatUserIds(currentUserIsAdmin(), phoneId, phoneIds);
+        return analyticsService.byType(type, from, to, uids, channel);
     }
 
     /** 真实收支：剔除同日同金额一收一支（转账退回） */
@@ -105,10 +110,11 @@ public class AnalyticsController {
                     LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     LocalDate to,
-            @RequestParam(required = false) Long wechatUserId,
-            @RequestParam(required = false) String wechatUserIds,
+            @RequestParam(required = false) Long phoneId,
+            @RequestParam(required = false) String phoneIds,
             @RequestParam(defaultValue = "wechat") String channel) {
-        return analyticsService.real(from, to, wechatUserId, wechatUserIds, channel);
+        List<Long> uids = analyticsScopeService.resolveWechatUserIds(currentUserIsAdmin(), phoneId, phoneIds);
+        return analyticsService.real(from, to, uids, channel);
     }
 
     @GetMapping("/by-counterparty")
