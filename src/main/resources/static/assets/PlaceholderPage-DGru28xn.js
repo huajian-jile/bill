@@ -1,1 +1,0 @@
-import{_ as s,c as l,d as t,t as o,x as r}from"./index-DEB8LSBl.js";const c={class:"placeholder"},n={__name:"PlaceholderPage",props:{title:{type:String,default:""}},setup(a){return(d,e)=>(r(),l("div",c,[t("h2",null,o(a.title),1),e[0]||(e[0]=t("p",{class:"hint"},"功能开发中，敬请期待。",-1))]))}},_=s(n,[["__scopeId","data-v-a00daae3"]]);export{_ as default};

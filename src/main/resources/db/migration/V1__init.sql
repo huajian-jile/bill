@@ -9,6 +9,7 @@
 --           GRANT ALL ON SCHEMA public TO postgres; GRANT ALL ON SCHEMA public TO public;
 --
 -- 订单/流水：交易单号 trade_no 非空时全局唯一（部分唯一索引）。
+-- 微信/支付宝共用三张表，以 channel (WECHAT/ALIPAY) 字段区分。
 -- =============================================================================
 
 -- ========== RBAC ==========
@@ -80,9 +81,10 @@ CREATE TABLE IF NOT EXISTS user_phone (
 
 CREATE INDEX IF NOT EXISTS idx_user_phone_user ON user_phone (user_id);
 
--- ========== 微信用户（关联 person）==========
+-- ========== 微信/支付宝用户（共用表，channel 区分）==========
 CREATE TABLE IF NOT EXISTS wechat_users (
     id BIGSERIAL PRIMARY KEY,
+    channel VARCHAR(16) NOT NULL DEFAULT 'WECHAT',
     wechat_nickname TEXT NOT NULL,
     person_id BIGINT,
     phone_id BIGINT,
@@ -94,25 +96,14 @@ CREATE TABLE IF NOT EXISTS wechat_users (
     is_archived BOOLEAN NOT NULL DEFAULT FALSE
 );
 
--- ========== 支付宝用户（关联 person）==========
-CREATE TABLE IF NOT EXISTS alipay_users (
-    id BIGSERIAL PRIMARY KEY,
-    person_id BIGINT NOT NULL,
-    alipay_nickname TEXT NOT NULL,
-    mobile_cn VARCHAR(11),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by TEXT,
-    updated_by TEXT,
-    extra_text TEXT,
-    is_archived BOOLEAN NOT NULL DEFAULT FALSE
-);
+CREATE INDEX IF NOT EXISTS idx_wechat_users_person ON wechat_users (person_id);
+CREATE INDEX IF NOT EXISTS idx_wechat_users_phone ON wechat_users (phone_id);
+CREATE INDEX IF NOT EXISTS idx_wechat_users_channel ON wechat_users (channel);
 
-CREATE INDEX IF NOT EXISTS idx_alipay_users_person ON alipay_users (person_id);
-
--- ========== 微信账单导入 / 明细 ==========
+-- ========== 微信/支付宝账单导入（共用表，channel 区分）==========
 CREATE TABLE IF NOT EXISTS wechat_bill_imports (
     id BIGSERIAL PRIMARY KEY,
+    channel VARCHAR(16) NOT NULL DEFAULT 'WECHAT',
     user_id BIGINT NOT NULL,
     person_id BIGINT,
     phone_id BIGINT,
@@ -138,9 +129,12 @@ CREATE TABLE IF NOT EXISTS wechat_bill_imports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_wx_import_user ON wechat_bill_imports (user_id);
+CREATE INDEX IF NOT EXISTS idx_wx_import_channel ON wechat_bill_imports (channel);
 
+-- ========== 微信/支付宝账单明细（共用表，channel 区分）==========
 CREATE TABLE IF NOT EXISTS wechat_bill_transactions (
     id BIGSERIAL PRIMARY KEY,
+    channel VARCHAR(16) NOT NULL DEFAULT 'WECHAT',
     bill_import_id BIGINT NOT NULL,
     person_id BIGINT,
     phone_id BIGINT,
@@ -167,68 +161,8 @@ CREATE TABLE IF NOT EXISTS wechat_bill_transactions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_wx_tx_import ON wechat_bill_transactions (bill_import_id);
+CREATE INDEX IF NOT EXISTS idx_wx_tx_person_hash ON wechat_bill_transactions (person_id, row_hash);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_wx_tx_trade_no ON wechat_bill_transactions (trade_no)
-    WHERE trade_no IS NOT NULL AND btrim(trade_no) <> '';
-
--- ========== 支付宝账单导入 / 明细 ==========
-CREATE TABLE IF NOT EXISTS alipay_bill_imports (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    person_id BIGINT,
-    phone_id BIGINT,
-    mobile_cn VARCHAR(11),
-    source_file TEXT NOT NULL,
-    export_type TEXT,
-    export_time TIMESTAMPTZ,
-    range_start TIMESTAMPTZ,
-    range_end TIMESTAMPTZ,
-    total_count INTEGER,
-    income_count INTEGER,
-    income_amount NUMERIC(18, 4),
-    expense_count INTEGER,
-    expense_amount NUMERIC(18, 4),
-    neutral_count INTEGER,
-    neutral_amount NUMERIC(18, 4),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by TEXT,
-    updated_by TEXT,
-    extra_text TEXT,
-    is_archived BOOLEAN NOT NULL DEFAULT FALSE
-);
-
-CREATE INDEX IF NOT EXISTS idx_ali_import_user ON alipay_bill_imports (user_id);
-
-CREATE TABLE IF NOT EXISTS alipay_bill_transactions (
-    id BIGSERIAL PRIMARY KEY,
-    bill_import_id BIGINT NOT NULL,
-    person_id BIGINT,
-    phone_id BIGINT,
-    mobile_cn VARCHAR(11),
-    row_hash CHAR(64) NOT NULL,
-    trade_time TEXT,
-    trade_type TEXT,
-    counterparty TEXT,
-    product TEXT,
-    income_expense TEXT,
-    amount_yuan NUMERIC(18, 4),
-    payment_method TEXT,
-    status TEXT,
-    trade_no TEXT,
-    merchant_no TEXT,
-    remark TEXT,
-    source_file TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by TEXT,
-    updated_by TEXT,
-    extra_text TEXT,
-    is_archived BOOLEAN NOT NULL DEFAULT FALSE
-);
-
-CREATE INDEX IF NOT EXISTS idx_ali_tx_import ON alipay_bill_transactions (bill_import_id);
-CREATE INDEX IF NOT EXISTS idx_ali_tx_person_hash ON alipay_bill_transactions (person_id, row_hash);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_ali_tx_trade_no ON alipay_bill_transactions (trade_no)
     WHERE trade_no IS NOT NULL AND btrim(trade_no) <> '';
 
 -- ========== 备份表明细（可编辑）==========

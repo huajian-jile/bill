@@ -12,8 +12,7 @@ public interface WechatBillTransactionRepository extends JpaRepository<WechatBil
 
     Optional<WechatBillTransaction> findByPersonIdAndRowHash(Long personId, String rowHash);
 
-    /** Spring Data：手机号 + row_hash，用于未绑定 person 时的跨批次去重 */
-    Optional<WechatBillTransaction> findByMobileCnAndRowHash(String mobileCn, String rowHash);
+    Optional<WechatBillTransaction> findByTradeNo(String tradeNo);
 
     List<WechatBillTransaction> findByBillImportIdIn(Collection<Long> importIds);
 
@@ -45,4 +44,12 @@ public interface WechatBillTransactionRepository extends JpaRepository<WechatBil
             AND t.archived = false
             """)
     List<WechatBillTransaction> findActiveByWechatUserIds(@Param("userIds") Collection<Long> userIds);
+
+    @Query(
+            """
+            SELECT t FROM WechatBillTransaction t
+            WHERE t.channel = :channel
+            AND t.archived = false
+            """)
+    List<WechatBillTransaction> findActiveByChannel(@Param("channel") String channel);
 }

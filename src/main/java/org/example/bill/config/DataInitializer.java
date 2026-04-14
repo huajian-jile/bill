@@ -1,7 +1,12 @@
 package org.example.bill.config;
 
+import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import org.example.bill.domain.AppUser;
+import org.example.bill.domain.AppUserPhone;
+import org.example.bill.domain.PhoneNumber;
+import org.example.bill.mapper.PhoneNumberMapper;
+import org.example.bill.repo.AppUserPhoneRepository;
 import org.example.bill.repo.AppUserRepository;
 import org.example.bill.repo.RoleRepository;
 import org.example.bill.util.AccountUsernameUtil;
@@ -16,7 +21,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 public class DataInitializer {
 
     private final AppUserRepository appUserRepository;
+    private final AppUserPhoneRepository appUserPhoneRepository;
     private final RoleRepository roleRepository;
+    private final PhoneNumberMapper phoneNumberMapper;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${app.bootstrap.admin-username:}")
@@ -24,6 +31,9 @@ public class DataInitializer {
 
     @Value("${app.bootstrap.admin-password:}")
     private String adminPassword;
+
+    @Value("${app.bootstrap.admin-phone:}")
+    private String adminPhone;
 
     @Bean
     ApplicationRunner seedAdmin() {
@@ -39,7 +49,6 @@ public class DataInitializer {
                 return;
             }
             if (appUserRepository.existsByUsername(un)) {
-                // 历史种子管理员未存档明文：若登录密码仍与 bootstrap 配置一致则补写（已改密则 hash 不匹配，不会覆盖）
                 appUserRepository
                         .findByUsername(un)
                         .ifPresent(
@@ -65,6 +74,30 @@ public class DataInitializer {
             u.setEnabled(true);
             u.getRoles().add(adminRole);
             appUserRepository.save(u);
+
+            // 绑定管理员手机号
+            if (adminPhone != null && !adminPhone.isBlank()) {
+                String mobile = adminPhone.trim();
+                // 确保 phone_number 中有记录
+                if (phoneNumberMapper.selectCount(null) == 0
+                        || phoneNumberMapper.selectList(
+                                        com.baomidou.mybatisplus.core.toolkit.Wrappers.<PhoneNumber>lambdaQuery()
+                                                .eq(PhoneNumber::getMobileCn, mobile))
+                                .isEmpty()) {
+                    PhoneNumber pn = new PhoneNumber();
+                    pn.setMobileCn(mobile);
+                    pn.setCreatedAt(Instant.now());
+                    phoneNumberMapper.insert(pn);
+                }
+                // 关联 app_user_phones
+                if (appUserPhoneRepository.findByUserIdAndMobileCn(u.getId(), mobile).isEmpty()) {
+                    AppUserPhone ap = new AppUserPhone();
+                    ap.setUserId(u.getId());
+                    ap.setMobileCn(mobile);
+                    ap.setCreatedAt(Instant.now());
+                    appUserPhoneRepository.save(ap);
+                }
+            }
         };
     }
 }

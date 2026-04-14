@@ -1,14 +1,16 @@
 package org.example.bill.domain;
 
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 import lombok.Getter;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "wechat_bill_transactions")
@@ -18,70 +20,90 @@ import lombok.Setter;
 @NoArgsConstructor
 public class WechatBillTransaction {
 
+    @TableId
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @TableField("channel")
+    @Column(name = "channel", nullable = false, length = 16)
+    private String channel = "WECHAT";
+
+    @TableField("bill_import_id")
     @Column(name = "bill_import_id", nullable = false)
     private Long billImportId;
 
+    @TableField("person_id")
     @Column(name = "person_id")
     private Long personId;
 
+    @TableField("phone_id")
     @Column(name = "phone_id")
     private Long phoneId;
 
+    @TableField("mobile_cn")
     @Column(name = "mobile_cn", length = 11)
     private String mobileCn;
 
     @JdbcTypeCode(SqlTypes.CHAR)
+    @TableField("row_hash")
     @Column(name = "row_hash", nullable = false, length = 64)
     private String rowHash;
 
-    @Column(name = "trade_time")
+    @TableField("trade_time")
     private String tradeTime;
 
-    @Column(name = "trade_type")
+    @TableField("trade_type")
     private String tradeType;
 
+    @TableField("counterparty")
     private String counterparty;
 
+    @TableField("product")
     private String product;
 
-    @Column(name = "income_expense")
+    @TableField("income_expense")
     private String incomeExpense;
 
-    @Column(name = "amount_yuan")
+    @TableField("amount_yuan")
     private BigDecimal amountYuan;
 
-    @Column(name = "payment_method")
+    @TableField("payment_method")
     private String paymentMethod;
 
+    @TableField("status")
     private String status;
 
-    @Column(name = "trade_no")
+    @TableField("trade_no")
     private String tradeNo;
 
-    @Column(name = "merchant_no")
+    @TableField("merchant_no")
     private String merchantNo;
 
+    @TableField("remark")
     private String remark;
 
-    @Column(name = "source_file")
+    @TableField("source_file")
     private String sourceFile;
 
+    @TableField("created_at")
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @TableField("updated_at")
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @TableField("created_by")
     private String createdBy;
+
+    @TableField("updated_by")
     private String updatedBy;
 
-    @Column(name = "extra_text")
+    @TableField("extra_text")
     private String extraText;
 
+    @TableField("is_archived")
     @Column(name = "is_archived", nullable = false)
-    private boolean archived;
+    private Boolean archived = false;
 }

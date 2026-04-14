@@ -1,9 +1,7 @@
 package org.example.bill.web;
 
 import lombok.RequiredArgsConstructor;
-import org.example.bill.domain.AlipayBillImport;
 import org.example.bill.domain.WechatBillImport;
-import org.example.bill.service.AlipayImportService;
 import org.example.bill.service.WechatXlsxImportService;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,7 +14,6 @@ import org.springframework.web.multipart.MultipartFile;
 public class BillImportController {
 
     private final WechatXlsxImportService wechatImportService;
-    private final AlipayImportService alipayImportService;
 
     @PostMapping(value = "/wechat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("isAuthenticated()")
@@ -28,9 +25,9 @@ public class BillImportController {
 
     @PostMapping(value = "/alipay", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("isAuthenticated()")
-    public AlipayBillImport importAlipay(
+    public WechatBillImport importAlipay(
             @RequestPart("file") MultipartFile file, @RequestParam("mobileCn") String mobileCn)
             throws Exception {
-        return alipayImportService.importAlipay(file, mobileCn);
+        return wechatImportService.importAlipay(file, mobileCn);
     }
 }

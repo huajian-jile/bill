@@ -19,8 +19,7 @@ import org.springframework.stereotype.Service;
  * 导入账单时：按手机号写入 {@code phone_number}，必要时新建 {@code person}，并回写 {@link WechatUser}
  * 的 {@code phone_id} / {@code person_id}，使导入批次与明细上的 person/phone 外键有值。
  *
- * <p>解析用户时优先按<strong>手机号</strong>复用已有 {@link WechatUser}，避免同一号码因昵称不同（导出文案、CSV
- * 占位名等）产生多条 {@code wechat_users} / {@code alipay_users}。
+ * <p>微信/支付宝共用 wechat_users 表，以 channel (WECHAT/ALIPAY) 区分。
  */
 @Service
 @RequiredArgsConstructor
@@ -32,9 +31,9 @@ public class BillImportLinkageService {
     private final WechatUserMapper wechatUserMapper;
 
     /**
-     * 若该手机号已在 {@code phone_number} 中存在且已有微信用户绑定，则返回该用户（按 id 最早一条），否则 empty。
+     * 若该手机号已在 {@code phone_number} 中存在且已有对应 channel 的用户绑定，则返回该用户（按 id 最早一条），否则 empty。
      */
-    public Optional<WechatUser> findWechatUserAlreadyLinkedToMobile(String mobileCn) {
+    public Optional<WechatUser> findUserAlreadyLinkedToMobile(String mobileCn, String channel) {
         String mobile = PhoneUtil.normalizeCnMobile(mobileCn);
         PhoneNumber pn =
                 phoneNumberMapper.selectOne(
@@ -43,7 +42,7 @@ public class BillImportLinkageService {
         if (pn == null) {
             return Optional.empty();
         }
-        return wechatUserMapper.findFirstByPhoneId(pn.getId());
+        return wechatUserMapper.findFirstByPhoneIdAndChannel(pn.getId(), channel);
     }
 
     /**
@@ -65,6 +64,10 @@ public class BillImportLinkageService {
         phoneNumberMapper.insert(pn);
     }
 
+    /**
+     * 保证手机号在 {@code phone_number} 中存在，必要时新建 {@code person}，并回写 {@link WechatUser}
+     * 的 {@code phone_id} / {@code person_id}。
+     */
     public void ensurePhoneAndPersonLinked(WechatUser wu, String mobileCn) {
         String mobile = PhoneUtil.normalizeCnMobile(mobileCn);
         PhoneNumber pn =
