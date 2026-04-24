@@ -35,6 +35,9 @@ app:
     expiration-ms: 86400000
   # 首次启动且库中不存在该账号时自动创建管理员（账号须为 10 位数字，与登录一致）
   bootstrap:
-    admin-username: "2658373594"
+    admin-username: "13979314684"
     admin-password: "13421342sS"
     admin-phone: "13979314684"
+  wx:
+    app-id: "wxf628dbcff91b088a"
+    app-secret: "c5d4499800902b0ce07019faffb616f2"

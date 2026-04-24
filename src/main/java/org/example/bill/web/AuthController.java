@@ -4,9 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.bill.domain.AppUser;
 import org.example.bill.repo.AppUserRepository;
 import org.example.bill.repo.RoleRepository;
-import org.example.bill.service.AuthCredentialRules;
 import org.example.bill.service.UserPhoneService;
-import org.example.bill.util.AccountUsernameUtil;
 import org.example.bill.util.PhoneUtil;
 import org.example.bill.web.dto.LoginRequest;
 import org.example.bill.web.dto.LoginResponse;
@@ -27,49 +25,68 @@ public class AuthController {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserPhoneService userPhoneService;
-    private final AuthCredentialRules authCredentialRules;
     private final AuthResponseMapper authResponseMapper;
 
     @PostMapping("/register")
     public ResponseEntity<LoginResponse> register(@RequestBody RegisterRequest req) {
-        authCredentialRules.requirePassword(req.password());
-        AccountUsernameUtil.requireValid(req.username());
-        String un = AccountUsernameUtil.normalize(req.username());
-        if (appUserRepository.existsByUsername(un)) {
-            throw new IllegalArgumentException("该账号已注册，请直接登录");
+        // 校验密码非空
+        String pwd = req.password();
+        if (pwd == null || pwd.isBlank()) {
+            throw new IllegalArgumentException("密码不能为空");
+        }
+        if (pwd.length() > 128) {
+            throw new IllegalArgumentException("密码不能超过 128 字符");
+        }
+        // 校验确认密码
+        if (!pwd.equals(req.confirmPassword())) {
+            throw new IllegalArgumentException("两次输入的密码不一致");
+        }
+        // 校验手机号
+        String mobile = PhoneUtil.normalizeCnMobile(req.mobile());
+        PhoneUtil.requireValidCnMobile(mobile);
+        // 账号用手机号
+        if (appUserRepository.existsByUsername(mobile)) {
+            throw new IllegalArgumentException("该手机号已注册，请直接登录");
         }
         var viewer =
                 roleRepository
                         .findByCode("VIEWER")
                         .orElseThrow(() -> new IllegalStateException("缺少 VIEWER 角色，请检查 Flyway"));
         AppUser u = new AppUser();
-        u.setUsername(un);
-        u.setPasswordHash(passwordEncoder.encode(req.password()));
-        u.setPasswordPlain(req.password());
+        u.setUsername(mobile);
+        u.setPasswordHash(passwordEncoder.encode(pwd));
+        u.setPasswordPlain(pwd);
         u.setEnabled(true);
         u.getRoles().add(viewer);
         appUserRepository.save(u);
 
-        String mobileRaw = req.mobile() == null ? "" : req.mobile().trim();
-        if (!mobileRaw.isEmpty()) {
-            PhoneUtil.requireValidCnMobile(mobileRaw);
-            userPhoneService.addPhone(u.getId(), mobileRaw);
-        }
+        // 注册时自动绑定手机号
+        userPhoneService.addPhone(u.getId(), mobile);
 
         AppUser fresh =
                 appUserRepository
-                        .findByUsername(un)
+                        .findByUsername(mobile)
                         .orElseThrow(() -> new IllegalStateException("注册后加载用户失败"));
         return ResponseEntity.ok(authResponseMapper.toLoginResponse(fresh));
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest req) {
-        AccountUsernameUtil.requireValid(req.username());
-        authCredentialRules.requirePassword(req.password());
-        String username = AccountUsernameUtil.normalize(req.username());
+        String identifier = req.mobile() == null ? "" : req.mobile().trim();
+        String pwd = req.password();
+        if (pwd == null || pwd.isBlank()) {
+            throw new IllegalArgumentException("密码不能为空");
+        }
+        String username;
+        if (PhoneUtil.isValidCnMobile(identifier)) {
+            // 11位手机号 → 直接作为用户名认证
+            username = PhoneUtil.normalizeCnMobile(identifier);
+        } else {
+            // 非手机号格式（旧账号，10位数字用户名）→ 直接作为用户名
+            username = identifier;
+        }
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(username, req.password()));
+                new UsernamePasswordAuthenticationToken(username, pwd));
         AppUser u =
                 appUserRepository
                         .findByUsername(username)
