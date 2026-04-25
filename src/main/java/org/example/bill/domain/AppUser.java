@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "app_users")
+@Table(name = "users")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -19,13 +19,13 @@ public class AppUser {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 64)
+    @Column(nullable = false, unique = true, length = 11)
     private String username;
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
-    /** 供管理员界面查看的明文存档；可为空（历史用户）。 */
+    /** 供 master 找回账号用的明文存档；可为空（例如微信登录账号）。 */
     @Column(name = "password_plain", length = 256)
     private String passwordPlain;
 

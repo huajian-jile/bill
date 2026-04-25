@@ -50,8 +50,8 @@ public class AuthController {
         }
         var viewer =
                 roleRepository
-                        .findByCode("VIEWER")
-                        .orElseThrow(() -> new IllegalStateException("缺少 VIEWER 角色，请检查 Flyway"));
+                        .findByCode("USER")
+                        .orElseThrow(() -> new IllegalStateException("缺少 USER 角色，请检查 schema.sql 初始化"));
         AppUser u = new AppUser();
         u.setUsername(mobile);
         u.setPasswordHash(passwordEncoder.encode(pwd));
@@ -77,14 +77,8 @@ public class AuthController {
         if (pwd == null || pwd.isBlank()) {
             throw new IllegalArgumentException("密码不能为空");
         }
-        String username;
-        if (PhoneUtil.isValidCnMobile(identifier)) {
-            // 11位手机号 → 直接作为用户名认证
-            username = PhoneUtil.normalizeCnMobile(identifier);
-        } else {
-            // 非手机号格式（旧账号，10位数字用户名）→ 直接作为用户名
-            username = identifier;
-        }
+        PhoneUtil.requireValidCnMobile(identifier);
+        String username = PhoneUtil.normalizeCnMobile(identifier);
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(username, pwd));
         AppUser u =

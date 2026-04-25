@@ -15,7 +15,7 @@ public class WechatBillImportQueryController {
     private final WechatBillImportRepository repo;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
+    @PreAuthorize("hasAuthority('PERM_VIEW_ALL_BILLS')")
     public List<WechatBillImport> list(@RequestParam(required = false) Long wechatUserId) {
         if (wechatUserId != null) {
             return repo.findByUserId(wechatUserId);

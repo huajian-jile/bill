@@ -9,7 +9,7 @@ import org.example.bill.mapper.PhoneNumberMapper;
 import org.example.bill.repo.AppUserPhoneRepository;
 import org.example.bill.repo.AppUserRepository;
 import org.example.bill.repo.RoleRepository;
-import org.example.bill.util.AccountUsernameUtil;
+import org.example.bill.util.PhoneUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
@@ -32,9 +32,6 @@ public class DataInitializer {
     @Value("${app.bootstrap.admin-password:}")
     private String adminPassword;
 
-    @Value("${app.bootstrap.admin-phone:}")
-    private String adminPhone;
-
     @Bean
     ApplicationRunner seedAdmin() {
         return args -> {
@@ -44,20 +41,14 @@ public class DataInitializer {
                     || adminPassword.isBlank()) {
                 return;
             }
-            String un = AccountUsernameUtil.normalize(adminUsername);
-            if (!AccountUsernameUtil.isValid(un)) {
-                return;
-            }
+            PhoneUtil.requireValidCnMobile(adminUsername);
+            String un = PhoneUtil.normalizeCnMobile(adminUsername);
             if (appUserRepository.existsByUsername(un)) {
                 appUserRepository
                         .findByUsername(un)
                         .ifPresent(
                                 u -> {
-                                    if (u.getPasswordPlain() != null && !u.getPasswordPlain().isBlank()) {
-                                        return;
-                                    }
                                     if (passwordEncoder.matches(adminPassword, u.getPasswordHash())) {
-                                        u.setPasswordPlain(adminPassword);
                                         appUserRepository.save(u);
                                     }
                                 });
@@ -65,19 +56,18 @@ public class DataInitializer {
             }
             var adminRole =
                     roleRepository
-                            .findByCode("ADMIN")
-                            .orElseThrow(() -> new IllegalStateException("缺少 ADMIN 角色，请检查 Flyway"));
+                            .findByCode("MASTER")
+                            .orElseThrow(() -> new IllegalStateException("缺少 MASTER 角色，请检查 schema.sql 初始化"));
             AppUser u = new AppUser();
             u.setUsername(un);
             u.setPasswordHash(passwordEncoder.encode(adminPassword));
-            u.setPasswordPlain(adminPassword);
             u.setEnabled(true);
             u.getRoles().add(adminRole);
             appUserRepository.save(u);
 
             // 绑定管理员手机号
-            if (adminPhone != null && !adminPhone.isBlank()) {
-                String mobile = adminPhone.trim();
+            if (un != null && !un.isBlank()) {
+                String mobile = un.trim();
                 // 确保 phone_number 中有记录
                 if (phoneNumberMapper.selectCount(null) == 0
                         || phoneNumberMapper.selectList(

@@ -701,12 +701,29 @@ function fmtMoney(v) {
   return Number.isFinite(n) ? n.toFixed(2) : '—'
 }
 
+function canViewAllBills() {
+  try {
+    const a = JSON.parse(localStorage.getItem('authorities') || '[]')
+    return Array.isArray(a) && a.includes('PERM_VIEW_ALL_BILLS')
+  } catch {
+    return false
+  }
+}
+
 async function loadPhones() {
   try {
     const { data } = await api.get('/me/bill-phones')
     phones.value = data || []
-    if (phones.value.length && multiPhone.value && !phoneIds.value?.length) {
-      phoneIds.value = phones.value.map((p) => p.id)
+    if (!phones.value.length) {
+      return
+    }
+    if (multiPhone.value) {
+      if (!phoneIds.value?.length) {
+        phoneIds.value = phones.value.map((p) => p.id)
+      }
+    } else if (!canViewAllBills() && (phoneId.value == null || phoneId.value === '')) {
+      // 普通用户：默认选中一个已绑定号码（与「分析看板」一致），避免空选时误以为「全部」
+      phoneId.value = phones.value[0].id
     }
   } catch {
     phones.value = []

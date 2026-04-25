@@ -13,8 +13,8 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 @Entity
-@Table(name = "bkp_wechat_bill_transactions")
-@TableName("bkp_wechat_bill_transactions")
+@Table(name = "bkp_bill_import_data")
+@TableName("bkp_bill_import_data")
 @Getter
 @Setter
 @NoArgsConstructor

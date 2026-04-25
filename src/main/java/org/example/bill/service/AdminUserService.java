@@ -8,7 +8,6 @@ import org.example.bill.domain.AppUser;
 import org.example.bill.domain.Role;
 import org.example.bill.repo.AppUserRepository;
 import org.example.bill.repo.RoleRepository;
-import org.example.bill.util.AccountUsernameUtil;
 import org.example.bill.web.SecurityUtil;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -31,9 +30,9 @@ public class AdminUserService {
 
     @Transactional
     public AppUser createUser(String usernameRaw, String password, List<String> roleCodes) {
-        AccountUsernameUtil.requireValid(usernameRaw);
+        org.example.bill.util.PhoneUtil.requireValidCnMobile(usernameRaw);
         authCredentialRules.requirePassword(password);
-        String username = AccountUsernameUtil.normalize(usernameRaw);
+        String username = org.example.bill.util.PhoneUtil.normalizeCnMobile(usernameRaw);
         if (appUserRepository.existsByUsername(username)) {
             throw new IllegalArgumentException("该账号已存在");
         }
@@ -59,9 +58,9 @@ public class AdminUserService {
                 appUserRepository
                         .findById(userId)
                         .orElseThrow(() -> new IllegalArgumentException("用户不存在"));
-        boolean isAdmin = u.getRoles().stream().anyMatch(r -> "ADMIN".equals(r.getCode()));
-        if (isAdmin && appUserRepository.countDistinctUsersHavingRole("ADMIN") <= 1) {
-            throw new IllegalArgumentException("不能删除唯一的系统管理员");
+        boolean isMaster = u.getRoles().stream().anyMatch(r -> "MASTER".equals(r.getCode()));
+        if (isMaster && appUserRepository.countDistinctUsersHavingRole("MASTER") <= 1) {
+            throw new IllegalArgumentException("不能删除唯一的 master");
         }
         appUserRepository.delete(u);
     }

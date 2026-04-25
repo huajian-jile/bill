@@ -16,6 +16,8 @@ public interface WechatBillTransactionRepository extends JpaRepository<WechatBil
 
     List<WechatBillTransaction> findByBillImportIdIn(Collection<Long> importIds);
 
+    long deleteByBillImportIdIn(Collection<Long> importIds);
+
     @Query(
             """
             SELECT t FROM WechatBillTransaction t

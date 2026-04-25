@@ -15,7 +15,7 @@ public class WechatUserQueryController {
     private final WechatUserRepository repo;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
+    @PreAuthorize("hasAuthority('PERM_VIEW_ALL_BILLS')")
     public List<WechatUser> list() {
         return repo.findAll();
     }

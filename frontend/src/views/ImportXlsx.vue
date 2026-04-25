@@ -2,7 +2,7 @@
   <el-card>
     <template #header>导入账单（微信：.xlsx；支付宝：.csv）</template>
     <el-alert type="info" :closable="false" show-icon style="margin-bottom: 16px">
-      <template v-if="isAdmin">
+      <template v-if="canViewAllBills">
         管理员可选择系统中<strong>任意已建档手机号</strong>（phone_number 全表）。可一次选择<strong>多个文件</strong>，将依次导入。
       </template>
       <template v-else>
@@ -42,7 +42,18 @@
         {{ channel === 'alipay' ? '拖拽或点击选择 .csv（可多选）' : '拖拽或点击选择 .xlsx（可多选）' }}
       </div>
     </el-upload>
-    <el-button type="primary" :loading="loading" style="margin-top: 12px" @click="upload">上传导入</el-button>
+    <div style="margin-top: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap">
+      <el-button type="primary" :loading="loading" @click="upload">上传导入</el-button>
+      <el-button
+        v-if="canViewAllBills"
+        type="danger"
+        plain
+        :disabled="loading || !(mobileCn || '').trim()"
+        @click="deleteImports"
+      >
+        删除该手机号导入记录（{{ channelLabel }}）
+      </el-button>
+    </div>
     <el-alert v-if="resultSummary" type="success" :title="resultSummary" style="margin-top: 12px" />
   </el-card>
 </template>
@@ -50,7 +61,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '../api'
 
 const router = useRouter()
@@ -63,14 +74,16 @@ const loading = ref(false)
 const resultSummary = ref('')
 const boundPhones = ref([])
 
-const isAdmin = computed(() => {
+const canViewAllBills = computed(() => {
   try {
     const a = JSON.parse(localStorage.getItem('authorities') || '[]')
-    return Array.isArray(a) && a.includes('PERM_USER_ADMIN')
+    return Array.isArray(a) && a.includes('PERM_VIEW_ALL_BILLS')
   } catch {
     return false
   }
 })
+
+const channelLabel = computed(() => (channel.value === 'alipay' ? '支付宝' : '微信'))
 
 const fileAccept = computed(() => (channel.value === 'alipay' ? '.csv' : '.xlsx'))
 
@@ -93,7 +106,7 @@ function fileMatchesChannel(name) {
 
 async function loadPhones() {
   try {
-    if (isAdmin.value) {
+    if (canViewAllBills.value) {
       const { data } = await api.get('/me/bill-phones')
       boundPhones.value = (data || []).map((p) => p.mobileCn).filter(Boolean)
     } else {
@@ -166,6 +179,30 @@ async function upload() {
       e.message ||
       '导入失败'
     ElMessage.error(msg)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function deleteImports() {
+  const m = (mobileCn.value || '').trim()
+  if (!m) return
+  try {
+    await ElMessageBox.confirm(
+      `确定删除手机号 ${m} 在「${channelLabel.value}」渠道下的所有导入记录与明细？此操作不可恢复。`,
+      '删除导入记录',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  loading.value = true
+  try {
+    const apiChannel = channel.value === 'alipay' ? 'ALIPAY' : 'WECHAT'
+    const { data } = await api.delete('/admin/import-cleanup', { params: { mobileCn: m, channel: apiChannel } })
+    ElMessage.success(`已删除：导入记录 ${data?.deletedImportRecords ?? 0} 条，明细 ${data?.deletedTransactions ?? 0} 条`)
+  } catch (e) {
+    ElMessage.error(e.response?.data?.message || '删除失败')
   } finally {
     loading.value = false
   }

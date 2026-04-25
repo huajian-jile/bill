@@ -10,8 +10,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "wechat_users")
-@TableName("wechat_users")
+@Table(name = "bill_users")
+@TableName("bill_users")
 @Getter
 @Setter
 @NoArgsConstructor

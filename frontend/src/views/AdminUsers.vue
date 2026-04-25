@@ -1,7 +1,7 @@
 <template>
   <div>
     <el-alert type="warning" :closable="false" show-icon style="margin-bottom: 12px">
-      密码以<strong>明文形式存档</strong>于库中仅供本页查看；自本功能上线后新建或注册的用户会显示。历史账号若显示「—」表示未存档，需由用户自行重置或通过「新建」流程覆盖。
+      密码以<strong>明文形式存档</strong>于库中仅供本页查看，便于 master 找回丢失账号；微信登录用户可能显示「—」。
     </el-alert>
     <div class="toolbar">
       <el-button type="primary" @click="openCreate">新建账号</el-button>
@@ -9,7 +9,7 @@
     </div>
     <el-table :data="users" border v-loading="loading">
       <el-table-column prop="id" label="ID" width="72" />
-      <el-table-column prop="username" label="账号" width="140" />
+      <el-table-column prop="username" label="手机号" width="140" />
       <el-table-column label="密码（明文存档）" min-width="160" show-overflow-tooltip>
         <template #default="{ row }">
           <span class="pwd-plain">{{ row.passwordPlain || '—' }}</span>
@@ -47,8 +47,8 @@
 
     <el-dialog v-model="dialogCreate" title="新建账号" width="420px" @closed="resetCreate">
       <el-form label-width="88px">
-        <el-form-item label="账号">
-          <el-input v-model="form.username" maxlength="10" placeholder="10 位数字" />
+        <el-form-item label="手机号">
+          <el-input v-model="form.username" maxlength="11" placeholder="11 位手机号" />
         </el-form-item>
         <el-form-item label="密码">
           <el-input v-model="form.password" type="password" show-password />

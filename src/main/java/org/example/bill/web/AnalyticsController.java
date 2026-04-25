@@ -28,7 +28,7 @@ public class AnalyticsController {
             return false;
         }
         for (GrantedAuthority ga : auth.getAuthorities()) {
-            if ("PERM_USER_ADMIN".equals(ga.getAuthority())) {
+            if ("PERM_VIEW_ALL_BILLS".equals(ga.getAuthority())) {
                 return true;
             }
         }
@@ -37,7 +37,7 @@ public class AnalyticsController {
 
     /** 某日收支 */
     @GetMapping("/day")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
     public DayAnalyticsDto day(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) Long phoneId,
@@ -49,7 +49,7 @@ public class AnalyticsController {
 
     /** 某日收支明细 + 可选对比日（同一结构） */
     @GetMapping("/day-detail")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
     public DayDetailDto dayDetail(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
@@ -63,7 +63,7 @@ public class AnalyticsController {
 
     /** 近 30 天收入/支出明细（不含中性），用于中性区下方展示 */
     @GetMapping("/rolling-income-expense")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
     public RollingIncomeExpenseDto rollingIncomeExpense(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(required = false) Long phoneId,
@@ -75,7 +75,7 @@ public class AnalyticsController {
 
     /** 某月每日收支 + 较前一日涨幅 */
     @GetMapping("/month")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
     public List<MonthDailyRowDto> month(
             @RequestParam int year,
             @RequestParam int month,
@@ -88,7 +88,7 @@ public class AnalyticsController {
 
     /** 收入 / 支出 / 中性 汇总 */
     @GetMapping("/by-type")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
     public TypeAnalyticsDto byType(
             @RequestParam String type,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
@@ -104,7 +104,7 @@ public class AnalyticsController {
 
     /** 真实收支：剔除同日同金额一收一支（转账退回） */
     @GetMapping("/real")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
     public RealDataAnalyticsDto real(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     LocalDate from,
@@ -118,7 +118,7 @@ public class AnalyticsController {
     }
 
     @GetMapping("/by-counterparty")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
     public CounterpartyBoardDto byCounterparty(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
@@ -134,7 +134,7 @@ public class AnalyticsController {
     }
 
     @GetMapping("/by-counterparty-detail")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
     public List<TransactionBriefDto> byCounterpartyDetail(
             @RequestParam String counterparty,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,

@@ -40,15 +40,15 @@ public interface WechatBillTransactionMapper extends BaseMapper<WechatBillTransa
 
     @Select(
             """
-            SELECT t.* FROM wechat_bill_transactions t
-            WHERE t.bill_import_id IN (SELECT id FROM wechat_bill_imports WHERE user_id = #{wechatUserId})
+            SELECT t.* FROM bill_import_data t
+            WHERE t.bill_import_id IN (SELECT id FROM bill_import_record WHERE user_id = #{wechatUserId})
             """)
     List<WechatBillTransaction> selectAllByWechatUserId(@Param("wechatUserId") Long wechatUserId);
 
     @Select(
             """
-            SELECT t.* FROM wechat_bill_transactions t
-            WHERE t.bill_import_id IN (SELECT id FROM wechat_bill_imports WHERE user_id = #{wechatUserId})
+            SELECT t.* FROM bill_import_data t
+            WHERE t.bill_import_id IN (SELECT id FROM bill_import_record WHERE user_id = #{wechatUserId})
             AND t.is_archived = false
             """)
     List<WechatBillTransaction> selectActiveByWechatUserId(@Param("wechatUserId") Long wechatUserId);

@@ -61,9 +61,9 @@
                   绑定手机号
                 </router-link>
               </div>
-              <div v-if="isAdmin" class="mega-row">
+              <div v-if="isMaster || canReviewPhones" class="mega-row">
                 <span class="mega-l2">其他功能：</span>
-                <router-link
+                <router-link v-if="isMaster"
                   to="/admin/users"
                   class="mega-l3"
                   active-class="mega-l3-active"
@@ -71,7 +71,7 @@
                 >
                   用户与角色
                 </router-link>
-                <router-link
+                <router-link v-if="canReviewPhones"
                   to="/admin/phone-binds"
                   class="mega-l3"
                   active-class="mega-l3-active"
@@ -125,10 +125,18 @@ function onMegaLinkClick() {
   megaSuppressHover.value = true
 }
 
-const isAdmin = computed(() => {
+const isMaster = computed(() => {
   try {
     const a = JSON.parse(localStorage.getItem('authorities') || '[]')
-    return a.includes('PERM_USER_ADMIN')
+    return a.includes('PERM_RBAC_ADMIN')
+  } catch {
+    return false
+  }
+})
+const canReviewPhones = computed(() => {
+  try {
+    const a = JSON.parse(localStorage.getItem('authorities') || '[]')
+    return a.includes('PERM_PHONE_BIND_REVIEW')
   } catch {
     return false
   }
@@ -165,7 +173,7 @@ function logout() {
 function sessionIsAdmin() {
   try {
     const a = JSON.parse(localStorage.getItem('authorities') || '[]')
-    return Array.isArray(a) && a.includes('PERM_USER_ADMIN')
+    return Array.isArray(a) && a.includes('PERM_VIEW_ALL_BILLS')
   } catch {
     return false
   }

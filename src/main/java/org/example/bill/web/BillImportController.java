@@ -16,7 +16,7 @@ public class BillImportController {
     private final WechatXlsxImportService wechatImportService;
 
     @PostMapping(value = "/wechat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('PERM_IMPORT_XLSX')")
     public WechatBillImport importWechat(
             @RequestPart("file") MultipartFile file, @RequestParam("mobileCn") String mobileCn)
             throws Exception {
@@ -24,7 +24,7 @@ public class BillImportController {
     }
 
     @PostMapping(value = "/alipay", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('PERM_IMPORT_XLSX')")
     public WechatBillImport importAlipay(
             @RequestPart("file") MultipartFile file, @RequestParam("mobileCn") String mobileCn)
             throws Exception {

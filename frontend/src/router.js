@@ -14,9 +14,9 @@ const routes = [
           try {
             const phones = JSON.parse(localStorage.getItem('phones') || '[]')
             const authorities = JSON.parse(localStorage.getItem('authorities') || '[]')
-            const isAdmin = authorities.includes('PERM_USER_ADMIN')
+            const canViewAllBills = authorities.includes('PERM_VIEW_ALL_BILLS')
             if (phones.length > 0) return '/import'
-            if (isAdmin) return '/analytics'
+            if (canViewAllBills) return '/analytics'
             return '/phones'
           } catch {
             return '/phones'
@@ -45,12 +45,12 @@ const routes = [
       {
         path: 'admin/users',
         component: () => import('./views/AdminUsers.vue'),
-        meta: { requiresAdmin: true }
+        meta: { requiresMaster: true }
       },
       {
         path: 'admin/phone-binds',
         component: () => import('./views/PhoneBindApprovals.vue'),
-        meta: { requiresAdmin: true }
+        meta: { requiresPhoneReview: true }
       }
     ]
   }
@@ -67,10 +67,22 @@ router.beforeEach((to, from, next) => {
     next('/login')
     return
   }
-  if (to.meta.requiresAdmin) {
+  if (to.meta.requiresMaster) {
     try {
       const a = JSON.parse(localStorage.getItem('authorities') || '[]')
-      if (!a.includes('PERM_USER_ADMIN')) {
+      if (!a.includes('PERM_RBAC_ADMIN')) {
+        next('/import')
+        return
+      }
+    } catch {
+      next('/import')
+      return
+    }
+  }
+  if (to.meta.requiresPhoneReview) {
+    try {
+      const a = JSON.parse(localStorage.getItem('authorities') || '[]')
+      if (!a.includes('PERM_PHONE_BIND_REVIEW')) {
         next('/import')
         return
       }
@@ -83,11 +95,11 @@ router.beforeEach((to, from, next) => {
     try {
       const authorities = JSON.parse(localStorage.getItem('authorities') || '[]')
       const phones = JSON.parse(localStorage.getItem('phones') || '[]')
-      const isAdmin = authorities.includes('PERM_USER_ADMIN')
+      const canViewAllBills = authorities.includes('PERM_VIEW_ALL_BILLS')
       // 未绑手机时仍允许进入分析/分组看板（可看空数据或提示）；导入、账单等仍走下方拦截
       const phoneGateExempt =
         to.path === '/phones' || to.path.startsWith('/analytics')
-      if (!isAdmin && (!phones || phones.length === 0) && !phoneGateExempt) {
+      if (!canViewAllBills && (!phones || phones.length === 0) && !phoneGateExempt) {
         next('/phones')
         return
       }

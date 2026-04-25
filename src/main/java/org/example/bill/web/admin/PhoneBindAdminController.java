@@ -18,7 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/api/admin/phone-bind-requests")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('PERM_USER_ADMIN')")
+@PreAuthorize("hasAuthority('PERM_PHONE_BIND_REVIEW')")
 public class PhoneBindAdminController {
 
     private final PhoneBindQueueService phoneBindQueueService;

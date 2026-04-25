@@ -8,8 +8,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "app_user_phones")
-@TableName("app_user_phones")
+@Table(name = "user_phones")
+@TableName("user_phones")
 @Getter
 @Setter
 @NoArgsConstructor

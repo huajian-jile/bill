@@ -40,14 +40,6 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-database-postgresql</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
@@ -100,19 +92,6 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-            <!-- 与 application.yaml 中数据源一致；checksum 不一致时可执行: mvn flyway:repair -->
-            <plugin>
-                <groupId>org.flywaydb</groupId>
-                <artifactId>flyway-maven-plugin</artifactId>
-                <configuration>
-                    <url>jdbc:postgresql://localhost:5432/bill</url>
-                    <user>postgres</user>
-                    <password>root</password>
-                    <locations>
-                        <location>classpath:db/migration</location>
-                    </locations>
-                </configuration>
             </plugin>
         </plugins>
     </build>

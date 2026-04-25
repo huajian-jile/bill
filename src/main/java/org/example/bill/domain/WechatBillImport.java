@@ -11,8 +11,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "wechat_bill_imports")
-@TableName("wechat_bill_imports")
+@Table(name = "bill_import_record")
+@TableName("bill_import_record")
 @Getter
 @Setter
 @NoArgsConstructor

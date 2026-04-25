@@ -19,13 +19,13 @@ public class SecurityUtil {
         return appUserRepository.findByUsername(auth.getName()).map(u -> u.getId()).orElse(null);
     }
 
-    /** 是否具备用户管理权限（与路由里 PERM_USER_ADMIN 一致）。 */
+    /** 是否具备“查看全量账单数据”权限（admin/master）。 */
     public boolean currentUserIsAdmin() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
             return false;
         }
         return auth.getAuthorities().stream()
-                .anyMatch(a -> "PERM_USER_ADMIN".equals(a.getAuthority()));
+                .anyMatch(a -> "PERM_VIEW_ALL_BILLS".equals(a.getAuthority()));
     }
 }

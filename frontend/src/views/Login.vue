@@ -53,7 +53,7 @@
                 <el-input
                   v-model="loginForm.mobile"
                   clearable
-                  placeholder="请输入账号"
+                  placeholder="请输入手机号"
                   prefix-icon="Phone"
                   size="large"
                   @keyup.enter="doLogin"
@@ -92,7 +92,7 @@
                 <el-input
                   v-model="regForm.mobile"
                   clearable
-                  placeholder="请输入账号"
+                  placeholder="请输入手机号"
                   prefix-icon="Phone"
                   size="large"
                   @keyup.enter="doRegister"

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/admin/users")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('PERM_USER_ADMIN')")
+@PreAuthorize("hasAuthority('PERM_RBAC_ADMIN')")
 public class UserAdminController {
 
     private final AdminUserService adminUserService;

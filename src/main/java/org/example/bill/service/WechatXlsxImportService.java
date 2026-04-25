@@ -1,10 +1,12 @@
 package org.example.bill.service;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.Reader;
+import java.io.StringReader;
 import java.math.BigDecimal;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -35,7 +37,8 @@ public class WechatXlsxImportService {
     private static final Pattern NICK = Pattern.compile("微信昵称[：:]\\s*\\[([^]]+)]");
     private static final Pattern RANGE =
             Pattern.compile("起始时间[：:]\\s*\\[([^]]+)]\\s*终止时间[：:]\\s*\\[([^]]+)]");
-    private static final Pattern EXPORT_TYPE = Pattern.compile("导出类型[：:]\\s*\\[([^]]+)]");
+    private static final Pattern EXPORT_TYPE =
+            Pattern.compile("(?:导出类型|导出交易类型)[：:]\\s*\\[([^]]+)]");
     private static final Pattern EXPORT_TIME = Pattern.compile("导出时间[：:]\\s*\\[([^]]+)]");
     private static final Pattern TOTAL = Pattern.compile("共\\s*(\\d+)\\s*笔记录");
     private static final Pattern INCOME =
@@ -217,69 +220,123 @@ public class WechatXlsxImportService {
     public WechatBillImport importCsv(MultipartFile file, String mobileCn) throws Exception {
         PhoneUtil.requireValidCnMobile(mobileCn);
 
-        // 支付宝CSV格式：前25行是统计信息，第25行是表头，第26行开始是数据
+        // 表头行之前逐行读 meta；定位表头后由同一流交给 Commons CSV 解析数据区，避免手拆行导致列错位、引号/逗号/多行单元格被误切。
         Map<String, Object> meta = new LinkedHashMap<>();
         List<String[]> dataRows = new ArrayList<>();
-        List<String> headers = new ArrayList<>();
+        String[] headerNames;
+        char delimiter;
+        boolean isWechatFlag = false;
 
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(file.getInputStream(), "GBK"))) {
+        try (BufferedReader br =
+                new BufferedReader(
+                        new InputStreamReader(
+                                file.getInputStream(), Charset.forName("GBK")))) {
             String line;
-            int lineNum = 0;
-            boolean headerFound = false;
-
-            while ((line = reader.readLine()) != null) {
-                lineNum++;
-
-                if (!headerFound) {
-                    // 前面的行是统计信息，解析meta
-                    parseMetaLine(line, meta);
-                    // 检查是否是表头行（包含"交易时间"且有"金额"）
-                    if (isAlipayCsvHeader(line)) {
-                        // 解析表头
-                        headers = parseCsvHeader(line);
-                        headerFound = true;
-                    }
-                    continue;
+            String headerLine = null;
+            while ((line = br.readLine()) != null) {
+                parseMetaLine(line, meta);
+                if (isWechatCsvHeader(line)) {
+                    headerLine = line;
+                    break;
                 }
+                if (isAlipayCsvHeader(line)) {
+                    headerLine = line;
+                    break;
+                }
+            }
+            if (headerLine == null) {
+                throw new IllegalArgumentException(
+                        "CSV 无表头（微信需含 交易单号；支付宝需含 交易订单号/商家订单号 与 交易时间）");
+            }
+            final boolean w = isWechatCsvHeader(headerLine);
+            if (!w && !isAlipayCsvHeader(headerLine)) {
+                throw new IllegalArgumentException("未识别的表头行");
+            }
+            isWechatFlag = w;
+            delimiter = detectCsvDelimiter(headerLine);
+            headerNames = parseOneCsvLine(headerLine, delimiter);
+            for (int i = 0; i < headerNames.length; i++) {
+                headerNames[i] = normalizeHeader(headerNames[i]);
+            }
+            // 行尾多余逗号会多出一列空表头；Commons CSV 的 setHeader 不允许空名或重名
+            headerNames = ensureNonBlankUniqueCsvHeaders(headerNames);
 
-                // 数据行
-                if (!line.trim().isEmpty()) {
-                    String[] vals = parseCsvDataLine(line, headers.size());
-                    if (vals != null) {
-                        dataRows.add(vals);
+            CSVFormat format =
+                    CSVFormat.Builder.create(CSVFormat.RFC4180)
+                            .setDelimiter(delimiter)
+                            .setHeader(headerNames)
+                            .setSkipHeaderRecord(false)
+                            .setIgnoreHeaderCase(true)
+                            .setTrim(true)
+                            .setIgnoreEmptyLines(true)
+                            .build();
+            try (CSVParser parser = format.parse(br)) {
+                for (CSVRecord r : parser) {
+                    if (r == null) {
+                        continue;
                     }
+                    int n = r.size();
+                    String[] arr = new String[headerNames.length];
+                    for (int c = 0; c < headerNames.length; c++) {
+                        if (c < n) {
+                            String v = r.get(c);
+                            arr[c] = v == null ? "" : v;
+                        } else {
+                            arr[c] = "";
+                        }
+                    }
+                    dataRows.add(arr);
                 }
             }
         }
 
-        if (headers.isEmpty()) {
-            throw new IllegalArgumentException("CSV 无表头（支付宝CSV应第25行为表头）");
-        }
-
+        final boolean isWechat = isWechatFlag;
         Map<String, Integer> col = new HashMap<>();
-        for (int i = 0; i < headers.size(); i++) {
-            if (!headers.get(i).isBlank()) {
-                col.put(headers.get(i).trim(), i);
+        for (int i = 0; i < headerNames.length; i++) {
+            String h = headerNames[i];
+            if (h != null && !h.isBlank()) {
+                col.putIfAbsent(h, i);
             }
         }
 
-        String channel = "ALIPAY";
-        String nick = "账单用户-" + PhoneUtil.normalizeCnMobile(mobileCn);
-        WechatUser wu =
-                wechatUserRepo
-                        .findFirstByWechatNicknameAndChannelOrderByIdAsc(nick, channel)
-                        .orElseGet(
-                                () -> {
-                                    WechatUser u = new WechatUser();
-                                    u.setChannel(channel);
-                                    u.setWechatNickname(nick);
-                                    Instant n = Instant.now();
-                                    u.setCreatedAt(n);
-                                    u.setUpdatedAt(n);
-                                    u.setArchived(false);
-                                    return wechatUserRepo.save(u);
-                                });
+        String channel = isWechat ? "WECHAT" : "ALIPAY";
+        WechatUser wu;
+        if (isWechat) {
+            String nickname =
+                    Optional.ofNullable(meta.get("wechat_nickname"))
+                            .map(Object::toString)
+                            .orElse("未知用户");
+            wu =
+                    wechatUserRepo
+                            .findFirstByWechatNicknameAndChannelOrderByIdAsc(nickname, "WECHAT")
+                            .orElseGet(
+                                    () -> {
+                                        WechatUser u = new WechatUser();
+                                        u.setChannel("WECHAT");
+                                        u.setWechatNickname(nickname);
+                                        Instant n = Instant.now();
+                                        u.setCreatedAt(n);
+                                        u.setUpdatedAt(n);
+                                        u.setArchived(false);
+                                        return wechatUserRepo.save(u);
+                                    });
+        } else {
+            String nick = "账单用户-" + PhoneUtil.normalizeCnMobile(mobileCn);
+            wu =
+                    wechatUserRepo
+                            .findFirstByWechatNicknameAndChannelOrderByIdAsc(nick, "ALIPAY")
+                            .orElseGet(
+                                    () -> {
+                                        WechatUser u = new WechatUser();
+                                        u.setChannel("ALIPAY");
+                                        u.setWechatNickname(nick);
+                                        Instant n = Instant.now();
+                                        u.setCreatedAt(n);
+                                        u.setUpdatedAt(n);
+                                        u.setArchived(false);
+                                        return wechatUserRepo.save(u);
+                                    });
+        }
 
         // 建立 person / phone 关联链路
         billImportLinkageService.ensurePhoneAndPersonLinked(wu, mobileCn);
@@ -294,8 +351,6 @@ public class WechatXlsxImportService {
         imp.setPhoneId(phoneId);
         imp.setMobileCn(PhoneUtil.normalizeCnMobile(mobileCn));
         imp.setSourceFile(Objects.requireNonNullElse(file.getOriginalFilename(), "upload.csv"));
-
-        // 保存meta信息
         applyMetaToImport(imp, meta);
 
         Instant now = Instant.now();
@@ -310,18 +365,31 @@ public class WechatXlsxImportService {
             WechatBillTransaction t = new WechatBillTransaction();
             t.setChannel(channel);
             t.setBillImportId(imp.getId());
-            // 支付宝CSV列名：交易时间,交易分类,交易对方,对方账号,商品说明,收/支,金额,收/付款方式,交易状态,交易订单号,商家订单号,备注
-            t.setTradeTime(get(col, vals, "交易时间"));
-            t.setTradeType(get(col, vals, "交易分类"));
-            t.setCounterparty(get(col, vals, "交易对方"));
-            t.setProduct(get(col, vals, "商品说明"));
-            t.setIncomeExpense(get(col, vals, "收/支"));
-            t.setAmountYuan(parseAmt(get(col, vals, "金额")));
-            t.setPaymentMethod(get(col, vals, "收/付款方式"));
-            t.setStatus(get(col, vals, "交易状态"));
-            t.setTradeNo(get(col, vals, "交易订单号"));
-            t.setMerchantNo(get(col, vals, "商家订单号"));
-            t.setRemark(get(col, vals, "备注"));
+            if (isWechat) {
+                t.setTradeTime(getAny(col, vals, "交易时间", "时间", "交易创建时间"));
+                t.setTradeType(get(col, vals, "交易类型"));
+                t.setCounterparty(get(col, vals, "交易对方"));
+                t.setProduct(get(col, vals, "商品"));
+                t.setIncomeExpense(getAny(col, vals, "收/支", "收支"));
+                t.setAmountYuan(parseAmt(get(col, vals, "金额(元)")));
+                t.setPaymentMethod(get(col, vals, "支付方式"));
+                t.setStatus(get(col, vals, "当前状态"));
+                t.setTradeNo(get(col, vals, "交易单号"));
+                t.setMerchantNo(get(col, vals, "商户单号"));
+                t.setRemark(get(col, vals, "备注"));
+            } else {
+                t.setTradeTime(getAny(col, vals, "交易时间", "时间", "交易创建时间"));
+                t.setTradeType(getAny(col, vals, "交易分类", "交易类型"));
+                t.setCounterparty(getAny(col, vals, "交易对方", "对方名称"));
+                t.setProduct(getAny(col, vals, "商品说明", "商品名称", "商品"));
+                t.setIncomeExpense(getAny(col, vals, "收/支", "收支"));
+                t.setAmountYuan(parseAmt(getAny(col, vals, "金额", "金额(元)")));
+                t.setPaymentMethod(getAny(col, vals, "收/付款方式", "支付方式"));
+                t.setStatus(getAny(col, vals, "交易状态", "当前状态"));
+                t.setTradeNo(getAny(col, vals, "交易订单号", "交易单号"));
+                t.setMerchantNo(getAny(col, vals, "商家订单号", "商户订单号"));
+                t.setRemark(getAny(col, vals, "备注", "备注信息"));
+            }
             t.setSourceFile(imp.getSourceFile());
             t.setPersonId(personId);
             t.setPhoneId(phoneId);
@@ -341,6 +409,7 @@ public class WechatXlsxImportService {
             t.setArchived(false);
             persistWechatTransaction(t, wu, imp, now);
         }
+        backfillImportStatsFromRows(imp.getId(), channel, dataRows, col);
         return imp;
     }
 
@@ -412,6 +481,113 @@ public class WechatXlsxImportService {
             return "";
         }
         return vals[i] == null ? "" : vals[i];
+    }
+
+    private String getAny(Map<String, Integer> col, String[] vals, String... names) {
+        for (String n : names) {
+            if (n == null || n.isBlank()) {
+                continue;
+            }
+            String v = get(col, vals, normalizeHeader(n));
+            if (v != null && !v.isBlank()) {
+                return v;
+            }
+        }
+        return "";
+    }
+
+    private static String normalizeHeader(String h) {
+        if (h == null) {
+            return "";
+        }
+        String s = h.trim();
+        // 处理 BOM（常见于 CSV 第一列表头）
+        s = s.replace("\uFEFF", "");
+        // 去掉首尾引号
+        s = s.replaceAll("^\"|\"$", "");
+        return s.trim();
+    }
+
+    /**
+     * 行尾逗号、多余分隔符会多出一列空表头；Commons CSV 的 {@code setHeader} 要求每个表头名非空、互不相同。
+     */
+    private static String[] ensureNonBlankUniqueCsvHeaders(String[] names) {
+        if (names == null) {
+            return new String[0];
+        }
+        String[] out = new String[names.length];
+        Set<String> used = new HashSet<>();
+        for (int i = 0; i < names.length; i++) {
+            String h = names[i] == null ? "" : names[i].trim();
+            if (h.isEmpty()) {
+                h = "_unnamed_" + i;
+            }
+            String candidate = h;
+            int d = 0;
+            while (used.contains(candidate)) {
+                d++;
+                candidate = h + "__" + d;
+            }
+            used.add(candidate);
+            out[i] = candidate;
+        }
+        return out;
+    }
+
+    private void backfillImportStatsFromRows(
+            Long importId, String channel, List<String[]> rows, Map<String, Integer> col) {
+        if (importId == null) {
+            return;
+        }
+        WechatBillImport imp = importRepo.findById(importId).orElse(null);
+        if (imp == null) {
+            return;
+        }
+        // 若已存在统计且非 0，则不覆盖
+        boolean hasAny =
+                (imp.getTotalCount() != null && imp.getTotalCount() > 0)
+                        || (imp.getIncomeCount() != null && imp.getIncomeCount() > 0)
+                        || (imp.getExpenseCount() != null && imp.getExpenseCount() > 0)
+                        || (imp.getNeutralCount() != null && imp.getNeutralCount() > 0);
+        if (hasAny) {
+            return;
+        }
+        int total = 0;
+        int ic = 0;
+        int ec = 0;
+        int nc = 0;
+        BigDecimal ia = BigDecimal.ZERO;
+        BigDecimal ea = BigDecimal.ZERO;
+        BigDecimal na = BigDecimal.ZERO;
+        for (String[] vals : rows) {
+            total++;
+            String ie = getAny(col, vals, "收/支", "收支");
+            BigDecimal amt = parseAmt(getAny(col, vals, "金额", "金额(元)"));
+            if (amt == null) {
+                amt = BigDecimal.ZERO;
+            }
+            // 兼容：支付宝常见值：支出/收入/不计收支/中性交易
+            String tag = (ie == null ? "" : ie.trim());
+            if (tag.contains("支出") || tag.equalsIgnoreCase("expense")) {
+                ec++;
+                ea = ea.add(amt.abs());
+            } else if (tag.contains("收入") || tag.equalsIgnoreCase("income")) {
+                ic++;
+                ia = ia.add(amt.abs());
+            } else {
+                nc++;
+                na = na.add(amt.abs());
+            }
+        }
+        imp.setChannel(channel);
+        imp.setTotalCount(total);
+        imp.setIncomeCount(ic);
+        imp.setIncomeAmount(ia);
+        imp.setExpenseCount(ec);
+        imp.setExpenseAmount(ea);
+        imp.setNeutralCount(nc);
+        imp.setNeutralAmount(na);
+        importRepo.save(imp);
     }
 
     private void parseMetaLine(String line, Map<String, Object> meta) {
@@ -556,51 +732,53 @@ public class WechatXlsxImportService {
         return o == null ? null : o.toString();
     }
 
-    /** 判断是否是支付宝CSV表头行（包含"交易时间"） */
-    private boolean isAlipayCsvHeader(String line) {
-        if (line == null) return false;
-        // 表头行包含"交易时间"且包含"金额"
-        return line.contains("交易时间") && line.contains("金额");
+    /** 微信 CSV 表头：含 交易单号、金额(元)，与支付宝「交易订单号」区分。 */
+    private static boolean isWechatCsvHeader(String line) {
+        if (line == null) {
+            return false;
+        }
+        return line.contains("交易时间")
+                && line.contains("交易单号")
+                && (line.contains("金额(元)") || line.contains("金额"));
     }
 
-    /** 解析CSV表头行（逗号分隔） */
-    private List<String> parseCsvHeader(String line) {
-        List<String> headers = new ArrayList<>();
-        // 支付宝CSV用逗号分隔
-        String[] parts = line.split(",");
-        for (String p : parts) {
-            headers.add(p.trim().replaceAll("^\"|\"$", ""));
+    /** 支付宝 CSV 表头。 */
+    private static boolean isAlipayCsvHeader(String line) {
+        if (line == null) {
+            return false;
         }
-        return headers;
+        return line.contains("交易时间")
+                && (line.contains("交易订单号") || line.contains("商家订单号"));
     }
 
-    /** 解析CSV数据行（逗号分隔，处理引号和混合Tab） */
-    private String[] parseCsvDataLine(String line, int headerSize) {
-        if (line == null || line.trim().isEmpty()) return null;
-        List<String> vals = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        boolean inQuotes = false;
+    private static char detectCsvDelimiter(String line) {
+        if (line == null) {
+            return ',';
+        }
+        if (line.indexOf('\t') >= 0 && line.indexOf(',') < 0) {
+            return '\t';
+        }
+        return ',';
+    }
 
-        for (int i = 0; i < line.length(); i++) {
-            char c = line.charAt(i);
-            if (c == '"') {
-                inQuotes = !inQuotes;
-            } else if ((c == ',' || c == '\t') && !inQuotes) {
-                vals.add(current.toString().trim());
-                current = new StringBuilder();
-            } else {
-                current.append(c);
+    /** 单行 RFC4180 解析，用于表头列名。 */
+    private String[] parseOneCsvLine(String line, char delimiter) throws IOException {
+        if (line == null) {
+            return new String[0];
+        }
+        CSVFormat fmt =
+                CSVFormat.Builder.create(CSVFormat.RFC4180).setDelimiter(delimiter).build();
+        try (CSVParser p = fmt.parse(new StringReader(line + "\n"))) {
+            for (CSVRecord r : p) {
+                int n = r.size();
+                String[] a = new String[n];
+                for (int i = 0; i < n; i++) {
+                    a[i] = r.get(i) == null ? "" : r.get(i);
+                }
+                return a;
             }
         }
-        vals.add(current.toString().trim()); // 最后一列
-
-        if (vals.size() < headerSize) {
-            // 填充空字符串
-            while (vals.size() < headerSize) {
-                vals.add("");
-            }
-        }
-        return vals.toArray(new String[0]);
+        return new String[0];
     }
 
     /** 将meta信息应用到import记录 */

@@ -16,7 +16,7 @@ public class OriginalTransactionReadController {
     private final WechatBillTransactionRepository repo;
 
     @GetMapping
-    @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
+    @PreAuthorize("hasAuthority('PERM_VIEW_ALL_BILLS')")
     public List<WechatBillTransaction> list(@RequestParam(required = false) Long wechatUserId) {
         if (wechatUserId == null) {
             return repo.findAll();
