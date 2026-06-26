@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where mvn:*)",
+      "Bash(ls /c/Program*/apache-maven*/bin/mvn*)",
+      "Bash(cmd /c \"cd /d c:\\\\downloadforwork\\\\othertool\\\\ower\\\\bill && mvn compile -q\")",
+      "Bash(cmd //c \"mvn compile -q 2>&1\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\26583\\.claude\\projects\\c--downloadforwork-othertool-ower-bill",
+      "C:\\downloadforwork\\othertool\\app\\appone\\utils",
+      "C:\\downloadforwork\\othertool\\app\\appone\\pages",
+      "C:\\downloadforwork\\othertool\\app\\appone"
+    ]
+  }
+}

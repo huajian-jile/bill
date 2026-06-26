@@ -1,0 +1,16 @@
+scp C:\downloadforwork\othertool\ower\bill\deploy\deploy.sh root@8.138.206.227:/opt/www/deploy.sh
+scp C:\downloadforwork\othertool\ower\bill\deploy\init-server.sh root@8.138.206.227:/opt/www/init-server.sh
+scp C:\downloadforwork\othertool\ower\bill\deploy\rollback.sh root@8.138.206.227:/opt/www/rollback.sh
+
+
+scp -r C:/downloadforwork/othertool/app/appone/build/miniprogram/* root@8.138.206.227:/opt/app/
+
+
+scp -r C:/downloadforwork/othertool/ower/bill/frontend/dist/* root@8.138.206.227:/opt/app/
+scp C:/downloadforwork/othertool/ower/bill/target/bill-*.jar root@8.138.206.227:/opt/www/
+# 停旧服务
+pkill -f bill-*.jar
+
+# 启动新服务
+nohup java -jar /opt/www/bill-*.jar --server.port=9000 > /opt/www/app.log 2>&1 &
+

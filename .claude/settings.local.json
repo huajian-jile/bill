@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Program Files/**)",
+      "Read(//c/ProgramData/**)",
+      "Bash(find /c -name \"mvn.cmd\")",
+      "Bash(\"/c/Users/26583/.m2/wrapper/dists/apache-maven-3.9.14/ed7edd442f634ac1c1ef5ba2b61b6d690b5221091f1a8e1123f5fadcc967520d/bin/mvn.cmd\" clean:*)",
+      "Bash(ls -lh c:/downloadforwork/othertool/ower/bill/target/bill-*.jar)",
+      "Bash(\"/c/Users/26583/.m2/wrapper/dists/apache-maven-3.9.14/ed7edd442f634ac1c1ef5ba2b61b6d690b5221091f1a8e1123f5fadcc967520d/bin/mvn.cmd\" compile:*)"
+    ]
+  }
+}

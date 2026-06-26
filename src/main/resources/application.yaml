@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: bill
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 55MB
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bill
+    username: postgres
+    password: root
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: public
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+server:
+  port: 9000
+
+app:
+  jwt:
+    secret: "ChangeThisToAVeryLongSecretKeyForHS256AlgorithmMin256Bits!!"
+    expiration-ms: 86400000
+  xuehai:
+    storage-dir: ${user.home}/bill-xuehai-files
+  # 首次启动且库中不存在该账号时自动创建 master（账号=手机号）
+  bootstrap:
+    admin-username: "13979314684"
+    admin-password: "13421342sS"
+  wx:
+    app-id: "wxf628dbcff91b088a"
+    app-secret: "c5d4499800902b0ce07019faffb616f2"
