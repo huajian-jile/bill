@@ -1,6 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.example.bill.mapper.WechatBillTransactionMapper">
+
+    <!-- 1. 新增：批量查询已存在的交易单号 -->
+    <select id="selectExistingTradeNos" resultType="java.lang.String">
+        SELECT trade_no FROM bill_import_data
+        WHERE trade_no IN
+        <foreach collection="list" item="tradeNo" open="(" separator="," close=")">
+            #{tradeNo}
+        </foreach>
+    </select>
+
+    <!-- 2. 新增：批量插入，并使用 ON CONFLICT DO NOTHING 避免重复插入报错 -->
+    <insert id="batchInsert" parameterType="java.util.List">
+        INSERT INTO bill_import_data (
+        bill_import_id, trade_time, trade_type, counterparty, product,
+        income_expense, amount_yuan, payment_method, status, trade_no,
+        merchant_no, remark, source_file, person_id, phone_id, mobile_cn,
+        row_hash, created_at, updated_at, created_by, updated_by, is_archived
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (
+            #{item.billImportId}, #{item.tradeTime}, #{item.tradeType}, #{item.counterparty},
+            #{item.product}, #{item.incomeExpense}, #{item.amountYuan}, #{item.paymentMethod},
+            #{item.status}, #{item.tradeNo}, #{item.merchantNo}, #{item.remark},
+            #{item.sourceFile}, #{item.personId}, #{item.phoneId}, #{item.mobileCn},
+            #{item.rowHash}, #{item.createdAt}, #{item.updatedAt}, #{item.createdBy},
+            #{item.updatedBy}, #{item.archived}
+            )
+        </foreach>
+        ON CONFLICT (trade_no) DO NOTHING
+    </insert>
+
+
     <select id="selectActiveByWechatUserIds" resultType="org.example.bill.domain.WechatBillTransaction">
         SELECT t.* FROM bill_import_data t
         WHERE t.bill_import_id IN (SELECT id FROM bill_import_record WHERE user_id IN
@@ -16,28 +48,28 @@
         INNER JOIN bill_users wu ON i.user_id = wu.id
         WHERE t.is_archived = false
         AND (
-            t.person_id IN
-            <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
-            OR wu.person_id IN
-            <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
-            OR EXISTS (
-                SELECT 1 FROM person p
-                WHERE p.id IN
-                <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
-                AND p.phone_id IS NOT NULL
-                AND wu.phone_id IS NOT NULL
-                AND p.phone_id = wu.phone_id
-            )
-            OR t.phone_id IN (
-                SELECT pp.phone_id FROM person_phone pp
-                WHERE pp.person_id IN
-                <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
-            )
-            OR wu.phone_id IN (
-                SELECT pp.phone_id FROM person_phone pp
-                WHERE pp.person_id IN
-                <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
-            )
+        t.person_id IN
+        <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        OR wu.person_id IN
+        <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        OR EXISTS (
+        SELECT 1 FROM person p
+        WHERE p.id IN
+        <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        AND p.phone_id IS NOT NULL
+        AND wu.phone_id IS NOT NULL
+        AND p.phone_id = wu.phone_id
+        )
+        OR t.phone_id IN (
+        SELECT pp.phone_id FROM person_phone pp
+        WHERE pp.person_id IN
+        <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        )
+        OR wu.phone_id IN (
+        SELECT pp.phone_id FROM person_phone pp
+        WHERE pp.person_id IN
+        <foreach collection="personIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        )
         )
     </select>
 
@@ -47,4 +79,5 @@
         AND t.phone_id IN
         <foreach collection="phoneIds" item="id" open="(" separator="," close=")">#{id}</foreach>
     </select>
+
 </mapper>

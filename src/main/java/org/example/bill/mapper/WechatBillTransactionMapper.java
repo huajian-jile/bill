@@ -58,4 +58,9 @@ public interface WechatBillTransactionMapper extends BaseMapper<WechatBillTransa
     List<WechatBillTransaction> selectActiveByPersonIds(@Param("personIds") Collection<Long> personIds);
 
     List<WechatBillTransaction> selectActiveByPhoneIds(@Param("phoneIds") Collection<Long> phoneIds);
+
+    List<String> selectExistingTradeNos(@Param("list") Collection<String> tradeNos);
+
+
+    void batchInsert(@Param("list") Collection<WechatBillTransaction> transactions);
 }

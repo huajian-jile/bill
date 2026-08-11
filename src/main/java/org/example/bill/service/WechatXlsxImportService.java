@@ -15,7 +15,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.compress.utils.Lists;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -26,6 +29,7 @@ import org.example.bill.mapper.WechatBillTransactionMapper;
 import org.example.bill.repo.*;
 import org.example.bill.util.PhoneUtil;
 import org.example.bill.util.RowHashUtil;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -53,7 +57,8 @@ public class WechatXlsxImportService {
     private final WechatBillTransactionRepository txRepo;
     private final WechatBillTransactionMapper txMapper;
     private final BillImportLinkageService billImportLinkageService;
-
+    @Autowired
+    private WechatBillTransactionMapper wechatBillTransactionMapper;
     /** xlsx 或 csv，须传中国大陆手机号 */
     @Transactional
     public WechatBillImport importWechat(MultipartFile file, String mobileCn) throws Exception {
@@ -72,14 +77,160 @@ public class WechatXlsxImportService {
         return importCsv(file, mobileCn);
     }
 
+//    @Transactional
+//    public WechatBillImport importXlsx(MultipartFile file, String mobileCn) throws Exception {
+//        Map<String, Object> meta = new HashMap<>();
+//        List<String[]> dataRows = new ArrayList<>();
+//        List<String> headers = new ArrayList<>();
+//
+//        try (InputStream in = file.getInputStream();
+//                Workbook wb = new XSSFWorkbook(in)) {
+//            Sheet sh = wb.getSheetAt(0);
+//            boolean headerFound = false;
+//            for (Row row : sh) {
+//                String line = rowText(row);
+//                if (!headerFound) {
+//                    parseMetaLine(line, meta);
+//                    if (looksLikeHeader(row)) {
+//                        headerFound = true;
+//                        headers.clear();
+//                        for (int c = 0; c < row.getLastCellNum(); c++) {
+//                            headers.add(cellStr(row.getCell(c)).trim());
+//                        }
+//                        continue;
+//                    }
+//                    continue;
+//                }
+//                if (isEmptyRow(row)) {
+//                    continue;
+//                }
+//                String[] vals = new String[headers.size()];
+//                Arrays.fill(vals, "");
+//                for (int i = 0; i < headers.size(); i++) {
+//                    vals[i] = cellStr(row.getCell(i)).trim();
+//                }
+//                dataRows.add(vals);
+//            }
+//        }
+//
+//        if (headers.isEmpty()) {
+//            throw new IllegalArgumentException("未找到微信账单表头行");
+//        }
+//
+//        Map<String, Integer> col = new HashMap<>();
+//        for (int i = 0; i < headers.size(); i++) {
+//            if (!headers.get(i).isBlank()) {
+//                col.put(headers.get(i), i);
+//            }
+//        }
+//
+//        String nickname =
+//                Optional.ofNullable(meta.get("wechat_nickname"))
+//                        .map(Object::toString)
+//                        .orElse("未知用户");
+//        WechatUser wu =
+//                wechatUserRepo
+//                        .findFirstByWechatNicknameAndChannelOrderByIdAsc(nickname, "WECHAT")
+//                        .orElseGet(
+//                                () -> {
+//                                    WechatUser u = new WechatUser();
+//                                    u.setChannel("WECHAT");
+//                                    u.setWechatNickname(nickname);
+//                                    Instant n = Instant.now();
+//                                    u.setCreatedAt(n);
+//                                    u.setUpdatedAt(n);
+//                                    u.setArchived(false);
+//                                    return wechatUserRepo.save(u);
+//                                });
+//
+//        // 建立 person / phone 关联链路
+//        billImportLinkageService.ensurePhoneAndPersonLinked(wu, mobileCn);
+//        wu = wechatUserRepo.findById(wu.getId()).orElse(wu);
+//
+//        WechatBillImport imp = new WechatBillImport();
+//        imp.setUserId(wu.getId());
+//        imp.setPersonId(wu.getPersonId());
+//        imp.setPhoneId(wu.getPhoneId());
+//        imp.setMobileCn(PhoneUtil.normalizeCnMobile(mobileCn));
+//        imp.setSourceFile(Objects.requireNonNullElse(file.getOriginalFilename(), "upload.xlsx"));
+//        imp.setExportType(str(meta.get("export_type")));
+//        imp.setExportTime(parseInstant(meta.get("export_time")));
+//        imp.setRangeStart(parseInstant(meta.get("range_start")));
+//        imp.setRangeEnd(parseInstant(meta.get("range_end")));
+//        if (meta.get("total_count") != null) {
+//            imp.setTotalCount(((Number) meta.get("total_count")).intValue());
+//        }
+//        if (meta.get("income_count") != null) {
+//            imp.setIncomeCount(((Number) meta.get("income_count")).intValue());
+//        }
+//        if (meta.get("income_amount") != null) {
+//            imp.setIncomeAmount(new BigDecimal(meta.get("income_amount").toString()));
+//        }
+//        if (meta.get("expense_count") != null) {
+//            imp.setExpenseCount(((Number) meta.get("expense_count")).intValue());
+//        }
+//        if (meta.get("expense_amount") != null) {
+//            imp.setExpenseAmount(new BigDecimal(meta.get("expense_amount").toString()));
+//        }
+//        if (meta.get("neutral_count") != null) {
+//            imp.setNeutralCount(((Number) meta.get("neutral_count")).intValue());
+//        }
+//        if (meta.get("neutral_amount") != null) {
+//            imp.setNeutralAmount(new BigDecimal(meta.get("neutral_amount").toString()));
+//        }
+//        Instant now = Instant.now();
+//        imp.setCreatedAt(now);
+//        imp.setUpdatedAt(now);
+//        imp.setArchived(false);
+//        imp.setCreatedBy("spring-import");
+//        imp.setUpdatedBy("spring-import");
+//        imp = importRepo.save(imp);
+//
+//        for (String[] vals : dataRows) {
+//            WechatBillTransaction t = new WechatBillTransaction();
+//            t.setBillImportId(imp.getId());
+//            t.setTradeTime(get(col, vals, "交易时间"));
+//            t.setTradeType(get(col, vals, "交易类型"));
+//            t.setCounterparty(get(col, vals, "交易对方"));
+//            t.setProduct(get(col, vals, "商品"));
+//            t.setIncomeExpense(get(col, vals, "收/支"));
+//            t.setAmountYuan(parseAmt(get(col, vals, "金额(元)")));
+//            t.setPaymentMethod(get(col, vals, "支付方式"));
+//            t.setStatus(get(col, vals, "当前状态"));
+//            t.setTradeNo(get(col, vals, "交易单号"));
+//            t.setMerchantNo(get(col, vals, "商户单号"));
+//            t.setRemark(get(col, vals, "备注"));
+//            t.setSourceFile(imp.getSourceFile());
+//            t.setPersonId(wu.getPersonId());
+//            t.setPhoneId(wu.getPhoneId());
+//            t.setMobileCn(PhoneUtil.normalizeCnMobile(mobileCn));
+//            t.setRowHash(
+//                    RowHashUtil.hash(
+//                            t.getTradeTime(),
+//                            t.getTradeNo(),
+//                            t.getMerchantNo(),
+//                            t.getAmountYuan(),
+//                            t.getTradeType(),
+//                            t.getCounterparty()));
+//            t.setCreatedAt(now);
+//            t.setUpdatedAt(now);
+//            t.setCreatedBy("spring-import");
+//            t.setUpdatedBy("spring-import");
+//            t.setArchived(false);
+//            persistWechatTransaction(t, wu, imp, now);
+//        }
+//        return imp;
+//    }
+    /** xlsx 或 csv，须传中国大陆手机号 */
     @Transactional
     public WechatBillImport importXlsx(MultipartFile file, String mobileCn) throws Exception {
         Map<String, Object> meta = new HashMap<>();
         List<String[]> dataRows = new ArrayList<>();
         List<String> headers = new ArrayList<>();
 
+        // 1. 解析 Excel 文件，提取元数据、表头和明细数据
         try (InputStream in = file.getInputStream();
-                Workbook wb = new XSSFWorkbook(in)) {
+             Workbook wb = new XSSFWorkbook(in)) {
             Sheet sh = wb.getSheetAt(0);
             boolean headerFound = false;
             for (Row row : sh) {
@@ -112,6 +263,7 @@ public class WechatXlsxImportService {
             throw new IllegalArgumentException("未找到微信账单表头行");
         }
 
+        // 2. 建立列名与索引的映射关系（兼容微信不同版本的表头顺序）
         Map<String, Integer> col = new HashMap<>();
         for (int i = 0; i < headers.size(); i++) {
             if (!headers.get(i).isBlank()) {
@@ -119,6 +271,7 @@ public class WechatXlsxImportService {
             }
         }
 
+        // 3. 查找或创建微信用户，并绑定手机号关联链路
         String nickname =
                 Optional.ofNullable(meta.get("wechat_nickname"))
                         .map(Object::toString)
@@ -142,6 +295,7 @@ public class WechatXlsxImportService {
         billImportLinkageService.ensurePhoneAndPersonLinked(wu, mobileCn);
         wu = wechatUserRepo.findById(wu.getId()).orElse(wu);
 
+        // 4. 保存“导入记录”主表（相当于建立一个文件夹）
         WechatBillImport imp = new WechatBillImport();
         imp.setUserId(wu.getId());
         imp.setPersonId(wu.getPersonId());
@@ -181,6 +335,10 @@ public class WechatXlsxImportService {
         imp.setUpdatedBy("spring-import");
         imp = importRepo.save(imp);
 
+        // ========== 以下是优化后的批量处理逻辑 ==========
+
+        // 5. 在内存中组装所有的交易流水对象
+        List<WechatBillTransaction> allTransactions = new ArrayList<>();
         for (String[] vals : dataRows) {
             WechatBillTransaction t = new WechatBillTransaction();
             t.setBillImportId(imp.getId());
@@ -212,11 +370,44 @@ public class WechatXlsxImportService {
             t.setCreatedBy("spring-import");
             t.setUpdatedBy("spring-import");
             t.setArchived(false);
-            persistWechatTransaction(t, wu, imp, now);
+
+            allTransactions.add(t);
         }
+
+        // 6. 批量查询数据库中已存在的 trade_no，防止重复插入
+        List<String> tradeNos = allTransactions.stream()
+                .map(WechatBillTransaction::getTradeNo)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Set<String> existingTradeNos = new HashSet<>();
+        if (!tradeNos.isEmpty()) {
+            List<String> existingList = wechatBillTransactionMapper.selectExistingTradeNos(tradeNos);
+            existingTradeNos.addAll(existingList);
+        }
+
+        // 7. 过滤出真正需要插入的新数据
+        List<WechatBillTransaction> newTransactions = allTransactions.stream()
+                .filter(t -> !existingTradeNos.contains(t.getTradeNo()))
+                .collect(Collectors.toList());
+
+        // 8. 分批插入新数据 (每批 1000 条，防止 SQL 语句过长导致数据库报错)
+        if (!newTransactions.isEmpty()) {
+            int batchSize = 1000;
+            for (int i = 0; i < newTransactions.size(); i += batchSize) {
+                // 计算当前批次的结束索引，防止越界
+                int end = Math.min(i + batchSize, newTransactions.size());
+                // 截取子列表
+                List<WechatBillTransaction> batch = newTransactions.subList(i, end);
+
+                // 执行批量插入
+                wechatBillTransactionMapper.batchInsert(batch);
+            }
+        }
+
         return imp;
     }
-
     public WechatBillImport importCsv(MultipartFile file, String mobileCn) throws Exception {
         PhoneUtil.requireValidCnMobile(mobileCn);
 

@@ -5,21 +5,9 @@ spring:
     multipart:
       max-file-size: 50MB
       max-request-size: 55MB
-  datasource:
-    url: jdbc:postgresql://localhost:5432/bill
-    username: postgres
-    password: root
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    open-in-view: false
-    properties:
-      hibernate:
-        default_schema: public
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:schema.sql
+  profiles:
+    active: dev
+
 
 server:
   port: 9000
@@ -37,3 +25,6 @@ app:
   wx:
     app-id: "wxf628dbcff91b088a"
     app-secret: "c5d4499800902b0ce07019faffb616f2"
+
+
+
