@@ -147,6 +147,21 @@ public class AnalyticsController {
         return analyticsService.real(from, to, uids, channel);
     }
 
+    /** 全量交易明细：按日期范围拉取所有交易（含收/支/中性），供备忘录分类使用。 */
+    @GetMapping("/transactions")
+    @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
+    public List<TransactionBriefDto> transactions(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate to,
+            @RequestParam(required = false) Long phoneId,
+            @RequestParam(required = false) String phoneIds,
+            @RequestParam(defaultValue = "wechat") String channel) {
+        List<Long> uids = analyticsScopeService.resolveWechatUserIds(currentUserIsAdmin(), phoneId, phoneIds);
+        return analyticsService.listTransactions(from, to, uids, channel);
+    }
+
     @GetMapping("/by-counterparty")
     @PreAuthorize("hasAuthority('PERM_ANALYTICS')")
     public CounterpartyBoardDto byCounterparty(

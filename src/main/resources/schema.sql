@@ -347,6 +347,20 @@ CREATE TABLE IF NOT EXISTS xuehai_read_progress (
     PRIMARY KEY (user_id, book_id)
 );
 
+-- ========== 备忘录分类 ==========
+CREATE TABLE IF NOT EXISTS memo_category (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    scope_key VARCHAR(256) NOT NULL,
+    name VARCHAR(128) NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    tx_ids TEXT NOT NULL DEFAULT '[]',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_memo_category_user_scope ON memo_category (user_id, scope_key);
+
 -- ========== RBAC 种子数据 ==========
 INSERT INTO roles (code, name) VALUES
     ('MASTER', '超级管理员'),

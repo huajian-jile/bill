@@ -393,6 +393,25 @@ public class AnalyticsService {
         }
     }
 
+    /**
+     * 返回指定日期范围内的所有交易明细（含收入、支出、中性），供备忘录分类使用。
+     */
+    public List<TransactionBriefDto> listTransactions(
+            LocalDate from, LocalDate to, List<Long> userIds, String channelRaw) {
+        AnalyticsChannel channel = AnalyticsChannel.fromParam(channelRaw);
+        String ch = channel == AnalyticsChannel.wechat ? "WECHAT"
+                  : channel == AnalyticsChannel.alipay ? "ALIPAY"
+                  : null;
+        List<WechatBillTransaction> inRange = filterInRange(loadTxsByChannel(userIds, ch), from, to);
+        List<TransactionBriefDto> out = new ArrayList<>();
+        for (WechatBillTransaction t : inRange) {
+            if (t.getAmountYuan() == null) continue;
+            out.add(toBrief(t));
+        }
+        out.sort(Comparator.comparing(TransactionBriefDto::tradeTime, Comparator.nullsLast(String::compareTo)));
+        return out;
+    }
+
     public RealDataAnalyticsDto real(
             LocalDate from, LocalDate to,
             List<Long> userIds, String channelRaw) {
